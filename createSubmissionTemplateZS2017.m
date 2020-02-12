@@ -9,11 +9,19 @@ else
     ZSpath = [path_in '/' submission_name '/'];
 end
 
+languages = {'english','french','mandarin','LANG1','LANG2'};
+durations = {'1s','10s','120s'};
+
 if ~exist(ZSpath,'dir')
     mkdir(ZSpath);
     mkdir([ZSpath '/2017/']);
     mkdir([ZSpath '/2017/code/']);
     mkdir([ZSpath '/2017/track1/']);
+    for k = 1:length(languages)
+        for j = 1:length(durations)
+            mkdir([ZSpath sprintf('/2017/track1/%s/%s/',languages{k},durations{j})]);
+        end
+    end
     mkdir([ZSpath '/2017/track2/']);
 else
     fprintf('Proposed submission template/folder structure already exists at %s\nOverwriting will destroy all existing data.\n',ZSpath);
@@ -23,17 +31,16 @@ else
         rmdir(ZSpath,'s');
         mkdir(ZSpath);
         mkdir([ZSpath '/2017/']);
-    mkdir([ZSpath '/2017/code/']);
-    mkdir([ZSpath '/2017/track1/']);
-    
-    languages = {'english','french','mandarin','LANG1','LANG2'};
-    durations = {'1s','10s','120s'};
-    for k = 1:length(languages)
-        for j = 1:length(durations)
-            mkdir([ZSpath sprintf('/2017/track1/%s/%s/',languages{k},durations{j})]);             
+        mkdir([ZSpath '/2017/code/']);
+        mkdir([ZSpath '/2017/track1/']);
+        
+        
+        for k = 1:length(languages)
+            for j = 1:length(durations)
+                mkdir([ZSpath sprintf('/2017/track1/%s/%s/',languages{k},durations{j})]);
+            end
         end
-    end    
-    mkdir([ZSpath '/2017/track2/']);
+        mkdir([ZSpath '/2017/track2/']);
     else
         fprintf('aborting ...\n');
         return;
