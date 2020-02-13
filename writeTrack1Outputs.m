@@ -12,22 +12,22 @@ function writeTrack1Outputs(filenames,features,timestamps,filepath)
 %     fclose(fid);       
 % end
 
-% Version 2
-
-% Version 1 (a bit faster)
+% Version 2 (a bit faster)
 for k = 1:length(filenames)
     [~,fil,~] = fileparts(filenames{k});
     fname = [filepath '/' fil '.txt'];
     
-    
+    % Transpose timestaps if needed
     tt = timestamps{k};
     if(size(tt,2) > size(tt,1))
         tt = tt';
     end
     
+    % Combine timestamps with features
     M = [tt features{k}];
     
-    csvwrite(fname,M);
+    %csvwrite(fname,M);
+    dlmwrite(fname,M,'delimiter',' ');
     
 end
 

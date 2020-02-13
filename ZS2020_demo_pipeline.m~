@@ -5,13 +5,12 @@ addpath([curdir '/aux/']);
 addpath([curdir '/misc/']);
 
 
-audio_location = '/Users/rasaneno/speechdb/zerospeech2020/2017/';
+audi
 submission_path = '/Users/rasaneno/rundata/ZS2020/';
-result_location = '/Users/rasaneno/rundata/ZS2020/eval/';
 
 % Demo pipeline
 
-ZS = loadZSData2017('mandarin',audio_location); % Load Mandarin data
+ZS = loadZSData2017('mandarin','/Users/rasaneno/speechdb/zerospeech2020/2017/'); % Load Mandarin data
 
 % Get MFCCs for test data with 10s chunks
 
@@ -27,10 +26,10 @@ createSubmissionTemplateZS2017('test_submission',submission_path)
 % Add calculated features to the template
 addTrack1FeaturesToSubmission(ZS,'test_submission',submission_path);
 
-% Evaluate 
-ss = sprintf('conda activate zerospeech2020;zerospeech2020-evaluate  -j 10 %s/%s/ %s 2017 -l mandarin track1 -dr 10s %s/ABX_tasks/',submission_path,submission_name,result_location,audio_location);
 
-system(ss);
+ss = sprintf('conda activate zerospeech2020;zerospeech2020-evaluate  -j 10 %s/%s/ eval/ 2017 -l mandarin track1 -dr 10s ABX_tasks/',submission_path,submisson_name);
+
+system();
 
 
 

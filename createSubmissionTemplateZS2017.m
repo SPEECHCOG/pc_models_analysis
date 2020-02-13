@@ -37,7 +37,13 @@ else
         mkdir(ZSpath);
         mkdir([ZSpath '/2017/']);
         mkdir([ZSpath '/2017/code/']);
+        fid = fopen([ZSpath '/2017/code/code.m'],'w');
+        fprintf(fid,'placeholder for code.txt');
+        fclose(fid);
+        
         mkdir([ZSpath '/2017/track1/']);
+        
+        system('find /Users/rasaneno/rundata/ZS2020/ -name ".DS_Store" -delete');
         
         
         for k = 1:length(languages)
@@ -54,28 +60,28 @@ end
 
 % Create general metadata file for the submission
 fid = fopen([ZSpath '/metadata.yaml'],'w');
-fprintf(fid,'author:\n');
+fprintf(fid,'author: ');
 fprintf(fid,'\t');
 for j = 1:length(authors)-1
     fprintf(fid,[authors{j} ', ']);
 end
 fprintf(fid,[authors{end}]);        
 fprintf(fid,'\n');
-fprintf(fid,'affiliation:\n');
+fprintf(fid,'affiliation: ');
 fprintf(fid,['\t' affiliation '\n']);
-fprintf(fid,'open source:\n');
+fprintf(fid,'open source: ');
 fprintf(fid,'\ttrue\n');
 fclose(fid);
 
 % Create ZS2017 challenge metadata file
 fid = fopen([ZSpath '/2017/metadata.yaml'],'w');
-fprintf(fid,'system description:\n');
+fprintf(fid,'system description: ');
 fprintf(fid,'  a brief description of your system, pointing to a paper where possible\n');
-fprintf(fid,'hyperparameters:\n');
+fprintf(fid,'hyperparameters: ');
 fprintf(fid,'  values of all the hyperparameters\n');
-fprintf(fid,'track1 supervised:\n');
+fprintf(fid,'track1 supervised: ');
 fprintf(fid,'  false\n');
-fprintf(fid,'track2 supervised:\n');
+fprintf(fid,'track2 supervised: ');
 fprintf(fid,'  false\n');
 fclose(fid);
 % 
