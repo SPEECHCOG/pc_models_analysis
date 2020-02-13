@@ -1,9 +1,0 @@
-function ZS = synthesizeTimeStamps(ZS,ws)
-
-languages = fields(ZS);
-
-for langiter = 1:length(languages)
-   ZS.(languages{1}).train 
-    
-    
-end
