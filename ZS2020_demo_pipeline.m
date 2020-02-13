@@ -1,3 +1,9 @@
+
+curdir = fileparts(which('ZS2020_demo_pipeline.m'));
+addpath([curdir '/MFCC_extract/']);
+addpath([curdir '/aux/']);
+addpath([curdir '/misc/']);
+
 % Demo pipeline
 
 ZS = loadZSData2017('mandarin','/Users/rasaneno/speechdb/zerospeech2020/2017/'); % Load Mandarin data

@@ -1,0 +1,12 @@
+% Demo pipeline
+
+ZS = loadZSData2017('english'); % Load English data
+
+% Get MFCCs for test data
+
+F = getMFCCs(ZS.english.test.filename_10,  
+
+
+
+
+

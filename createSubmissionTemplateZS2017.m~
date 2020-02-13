@@ -1,5 +1,5 @@
-function createSubmissionTemplateZS2017(submission_name,path_in)
-% function createSubmissionTemplateZS2017(submission_name,path_in)
+function createSubmissionTemplateZS2017(submission_name,path_in,ZS)
+% function createSubmissionTemplateZS2017(submission_name,path_in,ZS)
 
 authors = {'Maria Andrea Cruz Blandon','Okko Rasanen'};
 affiliation = 'Tampere University';
@@ -78,35 +78,37 @@ fprintf(fid,'  false\n');
 fprintf(fid,'track2 supervised:\n');
 fprintf(fid,'  false\n');
 fclose(fid);
-% 
-% 
-% % If input data exists
-% if(~isempty(ZS))
-%     
-%     languages = fields(ZS);
-%     
-%     for langiter = 1:length(languages)
-%         
-%         if(isfield(ZS.(languages{1}).test,'features_1') && isfield(ZS.(languages{1}).test,'features_1_t'))
-%             filepath = [ZSpath sprintf('/2017/track1/%s/1s/',languages{k})];
-%             writeTrack1Outputs(ZS.(languages{1}).test.filename_120,ZS.(languages{1}).test.features_1,ZS.(languages{1}).test.features_1_t,filepath);
-%         end
-%         
-%         if(isfield(ZS.(languages{1}).test,'features_10') && isfield(ZS.(languages{1}).test,'features_10_t'))
-%             filepath = [ZSpath sprintf('/2017/track1/%s/10s/',languages{k})];
-%             writeTrack1Outputs(ZS.(languages{1}).test.filename_10,ZS.(languages{1}).test.features_10,ZS.(languages{1}).test.features_10_t,filepath);
-%         end
-%         
-%         if(isfield(ZS.(languages{1}).test,'features_120') && isfield(ZS.(languages{1}).test,'features_120_t'))
-%             filepath = [ZSpath sprintf('/2017/track1/%s/120s/',languages{k})];
-%             writeTrack1Outputs(ZS.(languages{1}).test.filename_120,ZS.(languages{1}).test.features_120,ZS.(languages{1}).test.features_120_t,filepath);            
-%         end
-%         
-%     end
-%     
-%     
-% end
 
 
+% If input data exists
+if(~isempty(ZS))
+    
+    
+languages = fields(ZS);
+
+for langiter = 1:length(languages)   
+    
+    if(isfield(ZS.(languages{1}).test,'features_1') && isfield(ZS.(languages{1}).test,'features_1_t'))
+        
+    end
+    
+    if(isfield(ZS.(languages{1}).test,'features_10') && isfield(ZS.(languages{1}).test,'features_10_t'))
+        filepath = [ZSpath sprintf('/2017/track1/%s/10/',languages{k},durations{j})]);
+        writeTrack1Outputs(ZS.(languages{1}).test.features_10,ZS.(languages{1}).test.faetures_10_t,filepath);
+        
+    end
+    
+    if(isfield(ZS.(languages{1}).test,'features_120') && isfield(ZS.(languages{1}).test,'features_120_t'))
+        
+    end
+    
+    
+    
+end
+
+    
+end
+    
+    
 
 
