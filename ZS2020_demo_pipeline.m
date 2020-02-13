@@ -31,7 +31,7 @@ addTrack1FeaturesToSubmission(ZS,'test_submission',submission_path);
 if(~exist(result_location,'dir'))
     mkdir(result_location);
 end
-ss = sprintf('source ~/.bash_profile;conda activate zerospeech2020;zerospeech2020-evaluate  -j 10 %s/%s/ %s 2017 -l mandarin track1 -dr 10s %s/ABX_tasks/',submission_path,submission_name,result_location,audio_location);
+ss = sprintf('source ~/.bash_profile;conda activate zerospeech2020;zerospeech2020-evaluate  -j 10 %s/%s/ %s 2017 -l mandarin track1 -dr 10s %s/ABXTasks/',submission_path,submission_name,result_location,audio_location);
 
 system(ss);
 
