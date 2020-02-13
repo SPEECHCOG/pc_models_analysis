@@ -1,17 +1,23 @@
+% Demo pipeline for ZS2020
+
 clear all
-
-
 
 curdir = fileparts(which('ZS2020_demo_pipeline.m'));
 addpath([curdir '/MFCC_extract/']);
 addpath([curdir '/aux/']);
 addpath([curdir '/misc/']);
 
-audio_location = '/Users/rasaneno/speechdb/zerospeech2020/2017/';
-submission_path = '/Users/rasaneno/rundata/ZS2020/';
-result_location = '/Users/rasaneno/rundata/ZS2020/eval/';
 
-% Demo pipeline
+% Paths to change:
+
+audio_location = '/Users/rasaneno/speechdb/zerospeech2020/2017/'; % Where are ZS2017 audio located?
+submission_path = '/Users/rasaneno/rundata/ZS2020/';     % Where to store submission files?
+result_location = '/Users/rasaneno/rundata/ZS2020/eval/'; % Where to write results?
+
+submission_name = 'test_submission'; % Name your submission here
+
+
+%% Start processing
 
 ZS = loadZSData2017('mandarin',audio_location); % Load Mandarin data
 
@@ -24,10 +30,10 @@ ZS.mandarin.test.features_10 = getMFCCs(ZS.mandarin.test.filename_10,1,'white',1
 ZS = synthesizeTimeStamps(ZS,0.01);
 
 % Create template submission structure
-createSubmissionTemplateZS2017('test_submission',submission_path)
+createSubmissionTemplateZS2017(submission_name,submission_path)
 
 % Add calculated features to the template
-addTrack1FeaturesToSubmission(ZS,'test_submission',submission_path);
+addTrack1FeaturesToSubmission(ZS,submission_name,submission_path);
 
 % Evaluate 
 if(~exist(result_location,'dir'))
@@ -35,7 +41,7 @@ if(~exist(result_location,'dir'))
 end
 
 % Run ZS2020 evaluation toolkit
-system(sprintf('find %s -name ".DS_Store" -delete',submission_location)); % Remove DS_Store files on OSX platform
+system(sprintf('find %s -name ".DS_Store" -delete',submission_path)); % Remove DS_Store files on OSX platform
 ss = sprintf('source ~/.bash_profile;conda activate zerospeech2020;zerospeech2020-evaluate  -j 10 %s/%s/ %s 2017 -l mandarin track1 -dr 10s %s/ABXTasks/',submission_path,submission_name,result_location,audio_location);
 system(ss);
 
