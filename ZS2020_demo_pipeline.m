@@ -1,9 +1,11 @@
+clear all
+
+
 
 curdir = fileparts(which('ZS2020_demo_pipeline.m'));
 addpath([curdir '/MFCC_extract/']);
 addpath([curdir '/aux/']);
 addpath([curdir '/misc/']);
-
 
 audio_location = '/Users/rasaneno/speechdb/zerospeech2020/2017/';
 submission_path = '/Users/rasaneno/rundata/ZS2020/';
@@ -31,10 +33,14 @@ addTrack1FeaturesToSubmission(ZS,'test_submission',submission_path);
 if(~exist(result_location,'dir'))
     mkdir(result_location);
 end
-ss = sprintf('source ~/.bash_profile;conda activate zerospeech2020;zerospeech2020-evaluate  -j 10 %s/%s/ %s 2017 -l mandarin track1 -dr 10s %s/ABXTasks/',submission_path,submission_name,result_location,audio_location);
 
+% Run ZS2020 evaluation toolkit
+system(sprintf('find %s -name ".DS_Store" -delete',submission_location)); % Remove DS_Store files on OSX platform
+ss = sprintf('source ~/.bash_profile;conda activate zerospeech2020;zerospeech2020-evaluate  -j 10 %s/%s/ %s 2017 -l mandarin track1 -dr 10s %s/ABXTasks/',submission_path,submission_name,result_location,audio_location);
 system(ss);
 
+% Print results
+type(sprintf('%s/mandarin_10s_abx.txt',result_location));
 
 
 
