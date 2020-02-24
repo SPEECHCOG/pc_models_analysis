@@ -6,8 +6,15 @@
   "feature_extraction": {
     "audio_path": "path_to_challenge_dataset_2017",
     "languages": ["mandarin"],
-    "features_path": "path_where_to_save_features_extracted",
+    "features_path": "path_where_to_save_extracted_features",
     "window_length": 0.025,
-    "window_shift": 0.01
+    "window_shift": 0.01,
+    "method": {
+      "name":"feature_extraction_method_options:mfcc",
+      "delta": true,
+      "delta_delta": true,
+      "cmvn": true,
+      "folder_name": "name_of_folder_where_to_save_the_features"
+    }
   }
 }

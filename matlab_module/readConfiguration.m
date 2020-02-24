@@ -25,6 +25,7 @@ catch
     configuration.feature_extraction.languages = {'mandarin'};
     configuration.feature_extraction.window_length = 0.025;
     configuration.feature_extraction.window_shift = 0.01;
+    configuration.feature_extraction.method = 'mfcc';
 end
 
 % verify JSON structure, avoid if default configuration is used.
@@ -123,6 +124,20 @@ if ~default
         warning(['feature_extraction.window_shift does not exist. ' ... 
                  'Default value will be used instead: 0.01']);
         configuration.feature_extraction.window_shift = 0.01;
+    end
+    
+    try    
+        if ~ischar(configuration.feature_extraction.method.name)
+            warning(['feature_extraction.method.name should be ' ...
+                     'string. Default value will be used instead: ' ...
+                     'mfcc']);
+            configuration.feature_extraction.method.name = ... 
+                'mfcc';
+        end
+    catch
+        warning(['feature_extraction.method.name does not exist. ' ... 
+                 'Default value will be used instead: mfcc']);
+        configuration.feature_extraction.method.name = 'mfcc';
     end
 end
 end
