@@ -1,6 +1,6 @@
 # Zero-Resource Speech Challenge 2020
 
-## 1. Pipeline
+## Pipeline
 
 ![Pipeline](workflow.png)
 
