@@ -23,9 +23,16 @@ catch
     configuration.feature_extraction.audio_path = '../dataset/2017/';
     configuration.feature_extraction.features_path = '../features/';
     configuration.feature_extraction.languages = {'mandarin'};
+    configuration.feature_extraction.durations = {'10'};
     configuration.feature_extraction.window_length = 0.025;
     configuration.feature_extraction.window_shift = 0.01;
-    configuration.feature_extraction.method = 'mfcc';
+    configuration.feature_extraction.sample_length = 2;
+    % default feature extraction method: MFCC
+    configuration.feature_extraction.method.name = 'mfcc';
+    configuration.feature_extraction.method.delta = true;
+    configuration.feature_extraction.method.delta_delta = true;
+    configuration.feature_extraction.method.cmvn = true;
+    configuration.feature_extraction.method.folder_name = 'mfcc';
 end
 
 % verify JSON structure, avoid if default configuration is used.
@@ -94,10 +101,35 @@ if ~default
                      'instead: {''mandarin''}']);
             configuration.feature_extraction.languages = {'mandarin'};
         end
+        % If the array has been mapped as a column vector change it to 
+        % row vector
+        if size(configuration.feature_extraction.languages,2) == 1
+            configuration.feature_extraction.languages = ...
+                configuration.feature_extraction.languages';
+        end
     catch
         warning(['feature_extraction.languages does not exist. ' ... 
                  'Default value will be used instead: {''mandarin''}']);
         configuration.feature_extraction.languages = {'mandarin'};
+    end
+    
+    try    
+        if ~iscellstr(configuration.feature_extraction.durations)
+            warning(['feature_extraction.durations should be an ' ... 
+                     'array of strings. Default value will be used ' ...
+                     'instead: {''10''}']);
+            configuration.feature_extraction.durations = {'10'};
+        end
+        % If the array has been mapped as a column vector change it to 
+        % row vector
+        if size(configuration.feature_extraction.durations,2) == 1
+            configuration.feature_extraction.durations = ...
+                configuration.feature_extraction.durations';
+        end
+    catch
+        warning(['feature_extraction.durations does not exist. ' ... 
+                 'Default value will be used instead: {''10''}']);
+        configuration.feature_extraction.durations = {'10'};
     end
 
     try    
@@ -127,6 +159,19 @@ if ~default
     end
     
     try    
+        if ~isfloat(configuration.feature_extraction.sample_length)
+            warning(['feature_extraction.sample_length should be float' ...
+                     ' (length in seconds). ' ... 
+                     'Default value will be used instead: 2']);
+            configuration.feature_extraction.sample_length = 2;
+        end
+    catch
+        warning(['feature_extraction.sample_length does not exist. ' ... 
+                 'Default value will be used instead: 2']);
+        configuration.feature_extraction.sample_length = 2;
+    end
+    
+    try    
         if ~ischar(configuration.feature_extraction.method.name)
             warning(['feature_extraction.method.name should be ' ...
                      'string. Default value will be used instead: ' ...
@@ -138,6 +183,20 @@ if ~default
         warning(['feature_extraction.method.name does not exist. ' ... 
                  'Default value will be used instead: mfcc']);
         configuration.feature_extraction.method.name = 'mfcc';
+    end
+    
+    try    
+        if ~ischar(configuration.feature_extraction.method.folder_name)
+            warning(['feature_extraction.method.folder_name should be ' ...
+                     'string. Method name will be used instead']);
+            configuration.feature_extraction.method.folder_name = ... 
+                 configuration.feature_extraction.method.name;
+        end
+    catch
+        warning(['feature_extraction.method.folder_name does not ' ...
+                 'exist. Method name will be used instead']);
+        configuration.feature_extraction.method.folder_name = ...
+            configuration.feature_extraction.method.name;
     end
 end
 end
