@@ -39,7 +39,7 @@ else
         mkdir(fullfile(ZSpath, '2017'));
         mkdir(fullfile(ZSpath, '2017/code'));
         % link to code repository for uploaded model
-        fid = fopen([ZSpath '/2017/code/code.m'],'w');
+        fid = fopen([ZSpath '/2017/code/code.md'],'w');
         fprintf(fid,code_repository);
         fclose(fid);
         if exist('./*.DS_Store', 'file')

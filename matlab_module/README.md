@@ -11,8 +11,11 @@ Folder structure:
 │   ├── mutInfcross.m
 │   └── procbar.m
 ├── config_base.json
-├── config.json (local file)
+├── config.json
+├── createSubmissionTemplate2017.m~
+├── createSubmissionTemplateSL.m
 ├── createSubmissionTemplateZS2017.m
+├── createSubmissionTemplateZS2017.m~
 ├── loadZSData2017.m
 ├── MFCC_extract
 │   ├── htk_MFCC_And_MMFCC2_feature.m
@@ -27,7 +30,10 @@ Folder structure:
 │   ├── prepare_zs_data.m
 │   └── writeResultOutput.m
 ├── model_scripts
-│   └── prepare_zs_data_for_modeling.m
+│   ├── prepare_zs_data_for_modeling.m
+│   └── prepare_zs_data_for_modeling.m~
+├── readConfiguration.m
+├── readConfiguration.m~
 ├── README.md
 ├── synthesizeTimeStamps.m
 ├── writeTrack1Outputs.m
