@@ -1,2 +1,10 @@
 .DS_Store
-.m~
+# MatLab compilation files
+*.m~
+# local configuration of MatLab module
+**/config.json
+# Pycharm configuration local files and python compilation files.
+*/.idea/
+.idea/
+*.pyc
+

@@ -1,0 +1,13 @@
+{
+  "submission": {
+    "submission_path": "path_where_to_create_submission_folder",
+    "submission_name": "name_of_submission_folder"
+  },
+  "feature_extraction": {
+    "audio_location": "path_to_challenge_dataset_2017",
+    "language": ["mandarin"],
+    "features_location": "path_where_to_save_features_extracted",
+    "window_length": 0.025,
+    "window_shift": 0.01
+  }
+}
