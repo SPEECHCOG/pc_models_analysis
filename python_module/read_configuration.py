@@ -140,10 +140,10 @@ def load_training_features(train_in, train_out):
     :return: two numpy arrays: training input features and training output features
     """
 
-    X_train = scipy.io.loadmat(train_in[0])[train_in[1]]
-    Y_train = scipy.io.loadmat(train_out[0])[train_out[1]]
+    x_train = scipy.io.loadmat(train_in[0])[train_in[1]]
+    y_train = scipy.io.loadmat(train_out[0])[train_out[1]]
 
-    return X_train, Y_train
+    return x_train, y_train
 
 
 def load_test_set(test_set):
@@ -154,10 +154,10 @@ def load_test_set(test_set):
     :return: two numpy arrays: test input features and indices of frames
     """
     matlab_tensors = scipy.io.loadmat(test_set[0])
-    X_test = matlab_tensors[test_set[1]]
-    X_test_ind = matlab_tensors[test_set[2]]
+    x_test = matlab_tensors[test_set[1]]
+    x_test_ind = matlab_tensors[test_set[2]]
 
-    return X_test, X_test_ind
+    return x_test, x_test_ind
 
 
 def read_configuration_json(json_path, is_training, is_prediction):
