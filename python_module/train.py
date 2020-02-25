@@ -6,6 +6,7 @@ It trains a model according to the configuration given
 import argparse
 import sys
 
+from models.autoencoder import Autoencoder
 from read_configuration import read_configuration_json, load_training_features
 
 
@@ -26,7 +27,8 @@ def train(config_path):
     model_type = config['model']['type']
 
     if model_type == 'autoencoder':
-        pass
+        model = Autoencoder(config, x_train, y_train)
+        model.train()
 
     print('Training of model "%s" finished' % model_type)
 
