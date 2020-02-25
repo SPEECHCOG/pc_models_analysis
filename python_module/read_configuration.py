@@ -14,6 +14,7 @@ TRAINING_CONFIG = [
     ('train_out', list, None, True),
     ('output_path', str, None, True),
     ('features_folder_name', str, None, True),
+    ('language', str, 'mandarin', False),
     ('model', dict, None, True)
 ]
 
@@ -78,6 +79,10 @@ def validate_training(config):
     validate_fields(config['training'], TRAINING_CONFIG)
     # Validate model fields
     validate_fields(config['training']['model'], TRAINING_MODEL_CONFIG)
+
+    # Validate language
+    if config['training']['language'] not in LANGUAGES:
+        raise Exception('Only ' + ', '.join(LANGUAGES) + ' are supported.')
 
     # Validate training files fields
     for field in ['train_in', 'train_out']:

@@ -4,6 +4,7 @@
     "train_out": ["path_to_output_features_training_set", "variable_name"],
     "output_path": "path_where_to_save_the_trained_model",
     "features_folder_name": "name_of_features_folder",
+    "language": "mandarin",
     "model": {
       "name": "name_of_model",
       "type": "type_of_model_options:autoencoder",
