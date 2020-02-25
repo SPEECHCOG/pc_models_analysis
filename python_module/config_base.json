@@ -22,6 +22,8 @@
     "test_set": ["path_to_folder_containing_input_features_test_set", "variable_name_data", "variable_name_index"],
     "language": "mandarin",
     "durations": ["10"],
-    "use_last_layer": false
+    "use_last_layer": false,
+    "window_shift": 0.01,
+    "files_limit": 10
   }
 }

@@ -47,11 +47,12 @@ class ModelBase(ABC):
         """
         self.output_folder = config['output_path']
         self.model_path = config['model_path']
-        self.name = config['model_name']
+        self.name = config['model_folder_name']
         self.features_folder_name = config['features_folder_name']
         self.language = config['language']
         self.use_last_layer = config['use_last_layer']
         self.window_shift = config['window_shift']
+        self.files_limit = config['files_limit']
 
     @abstractmethod
     def train(self):
@@ -90,4 +91,5 @@ class ModelBase(ABC):
         os.makedirs(full_predictions_folder_path, exist_ok=True)
 
         # Create predictions text files
-        create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift)
+        create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
+                                limit=self.files_limit)

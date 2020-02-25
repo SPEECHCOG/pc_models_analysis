@@ -20,7 +20,7 @@ def predict(config_path):
     config = read_configuration_json(config_path, False, True)['prediction']
 
     # Use correct model
-    model_type = config['model']['type']
+    model_type = config['model_folder_name']
 
     if model_type == 'autoencoder':
         model = Autoencoder()
