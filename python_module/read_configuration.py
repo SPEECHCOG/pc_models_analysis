@@ -12,7 +12,7 @@ import scipy.io
 TRAINING_CONFIG = [
     ('train_in', list, None, True),
     ('train_out', list, None, True),
-    ('output_patn', str, None, True),
+    ('output_path', str, None, True),
     ('features_folder_name', str, None, True),
     ('model', dict, None, True)
 ]
@@ -56,7 +56,7 @@ def validate_fields(config, config_definition):
         if field[0] not in current_fields:
             if field[3]:
                 # It is a required field
-                raise Exception('The training configuration is missing required field %s' % field)
+                raise Exception('The training configuration is missing required field "%s"' % field[0])
             else:
                 # Create field with default value
                 config[field[0]] = field[2]
@@ -82,7 +82,7 @@ def validate_training(config):
     # Validate training files fields
     for field in ['train_in', 'train_out']:
         if len(config['training'][field]) != 2:
-            raise Exception('%s should have 2 strings in the format: [path, name_of_variable]' % field)
+            raise Exception('%s should have 2 strings in the format: [path, name_of_variable]' % field[0])
         if type(config['training'][field][0]) != str or type(config['training'][field][1]) != str:
             raise Exception('%s should have only string items' % field)
 
@@ -115,11 +115,6 @@ def validate_prediction(config):
             type(config['prediction']['test_set'][2]) != str:
         raise Exception('test_set should have only string items')
 
-    # Validate paths
-    for path in [config['prediction']['model_path'], config['prediction']['test_set'][0]]:
-        if not os.path.exists(path):
-            raise Exception('The file does not exist: %s' % path)
-
     # Validate language
     if config['prediction']['language'] not in LANGUAGES:
         raise Exception('Only ' + ', '.join(LANGUAGES) + ' are supported.')
@@ -128,6 +123,13 @@ def validate_prediction(config):
     for duration in config['prediction']['durations']:
         if duration not in DURATIONS:
             raise Exception('Only durations of: ' + ', '.join(DURATIONS) + ' are supported.')
+
+    # Validate paths
+    test_paths = [os.path.join(config['prediction']['test_set'][0], ('test_' + d + 's.mat'))
+                  for d in config['prediction']['durations']]
+    for path in [config['prediction']['model_path']] + test_paths:
+        if not os.path.exists(path):
+            raise Exception('The file does not exist: %s' % path)
 
     return config
 
@@ -146,14 +148,15 @@ def load_training_features(train_in, train_out):
     return x_train, y_train
 
 
-def load_test_set(test_set):
+def load_test_set(test_set, duration):
     """
     It reads a .mat file with the test set features plus the indices to match each frame to the source
     file.
     :param test_set: configuration of the test set
+    :param duration: string specifying the test set duration (possible values 1, 10, 120)
     :return: two numpy arrays: test input features and indices of frames
     """
-    matlab_tensors = scipy.io.loadmat(test_set[0])
+    matlab_tensors = scipy.io.loadmat(os.path.join(test_set[0], ('test_' + duration + 's.mat')))
     x_test = matlab_tensors[test_set[1]]
     x_test_ind = matlab_tensors[test_set[2]]
 
