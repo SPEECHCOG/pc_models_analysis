@@ -4,13 +4,27 @@ Abstract class for neural networks models using Keras.
 New models should inherit from this class so we can run training and prediction the same way for
 all the models and independently.
 """
-
+import os
 from abc import ABC, abstractmethod
+
+from keras.models import Model
+from keras.engine.saving import load_model
+
+from models.create_prediction_files import create_prediction_files
 
 
 class ModelBase(ABC):
-    def __init__(self, config, x_train, y_train):
-        # properties from configuration file
+    @abstractmethod
+    def load_training_configuration(self, config, x_train, y_train):
+        """
+        Loads the configuration parameters from the configuration dictionary, and the input/output features for
+        training
+        :param config: a dictionary with the configuration for training
+        :param x_train: a numpy array with the input features
+        :param y_train: a numpy array with the output features
+        :return: instance will have the configuration parameters
+        """
+        # properties from configuration file for training
         model_config = config['model']
         self.name = model_config['name']
         self.type = model_config['type']
@@ -23,12 +37,57 @@ class ModelBase(ABC):
         self.language = config['language']
         self.x_train = x_train
         self.y_train = y_train
-        super().__init__()
+
+    @abstractmethod
+    def load_prediction_configuration(self, config):
+        """
+        It loads the configuration parameters for the prediction.
+        :param config: a dictionary with the prediction configuration
+        :return: instance will have the configuration parameters
+        """
+        self.output_folder = config['output_path']
+        self.model_path = config['model_path']
+        self.name = config['model_name']
+        self.features_folder_name = config['features_folder_name']
+        self.language = config['language']
+        self.use_last_layer = config['use_last_layer']
+        self.window_shift = config['window_shift']
 
     @abstractmethod
     def train(self):
-        raise NotImplementedError
+        raise NotImplementedError('The model needs to overwrite the train method. The method should configure the '
+                                  'learning process, callbacks and fit the model.')
 
     @abstractmethod
-    def predict(self):
-        raise NotImplementedError
+    def predict(self, x_test, x_test_ind, duration):
+        """
+        It predicts the output features for the test set (x_test) and output the predictions in text files using
+        (x_test_ind).
+        :param x_test: a numpy array with the test set (samples of input features in the same format than those used
+                       for training the model). It has dimension samples x time-steps x features.
+        :param x_test_ind: a numpy array with the indices (number of frame in the source audio) for each sample. The
+                           dimension is samples x time-steps x 2 (where the first number is the source audio identifier,
+                           and the second one is the number of the frame in the audio).
+        :param duration: a string with the duration of the audio files (1, 10 or 120)
+        :return: predictions will be saved in text files. The folder structure is kept.
+        """
+        self.model = load_model(self.model_path)
+
+        if self.use_last_layer:
+            predictor = self.model
+        else:
+            # Prediction of model will use latent representation (intermediate layer)
+            input_layer = self.model.get_layer('input_layer').output
+            latent_layer = self.model.get_layer('latent_layer').output
+            predictor = Model(input_layer, latent_layer)
+
+        # Calculate predictions
+        predictions = predictor.predict(x_test)
+
+        # Create folder for predictions
+        full_predictions_folder_path = os.path.join(self.output_folder,self.name, self.features_folder_name,
+                                                    self.language, (duration + 's'))
+        os.makedirs(full_predictions_folder_path, exist_ok=True)
+
+        # Create predictions text files
+        create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift)

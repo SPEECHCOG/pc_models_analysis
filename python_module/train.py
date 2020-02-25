@@ -27,7 +27,8 @@ def train(config_path):
     model_type = config['model']['type']
 
     if model_type == 'autoencoder':
-        model = Autoencoder(config, x_train, y_train)
+        model = Autoencoder()
+        model.load_training_configuration(config, x_train, y_train)
         model.train()
 
     print('Training of model "%s" finished' % model_type)

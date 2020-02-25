@@ -35,7 +35,8 @@ PREDICTION_CONFIG = [
     ('test_set', list, None, True),
     ('language', str, 'mandarin', False),
     ('durations', list, ['10'], False),
-    ('use_last_layer', bool, False, False)
+    ('use_last_layer', bool, False, False),
+    ('window_shift', float, 0.01, False)
 ]
 
 LANGUAGES = ['english', 'mandarin', 'french', 'LANG1', 'LANG2']

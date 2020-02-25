@@ -14,7 +14,7 @@ from models.model_base import ModelBase
 
 
 class Autoencoder(ModelBase):
-    def __init__(self, config, x_train, y_train):
+    def load_training_configuration(self, config, x_train, y_train):
         """
         The autoencoder has the following architecture:
         * 6 layers in total
@@ -25,7 +25,7 @@ class Autoencoder(ModelBase):
         :param x_train: a numpy 3D-array with the samples (input features) to train the model
         :param y_train: a numpy 3D-array with the samples (output features) to train the model
         """
-        super(Autoencoder, self).__init__(config, x_train, y_train)
+        super(Autoencoder, self).load_training_configuration(config, x_train, y_train)
 
         self.input_shape = self.x_train.shape[1:]
         self.features = self.x_train.shape[2]
@@ -46,10 +46,18 @@ class Autoencoder(ModelBase):
 
         self.model = Model(input_feats, decoded_3)
 
+    def load_prediction_configuration(self, config):
+        """
+        It loads the configuration for predictions using default behaviour from ModelBase
+        :param config: a dictionary with the configuration parameters
+        :return: the instance will have the configuration parameters
+        """
+        super(Autoencoder, self).load_prediction_configuration(config)
+
     def train(self):
         """
         It trains an autoencoder model using the parameters in the configuration.
-        :return: a trained model saved in h5 file
+        :return: a trained model. The model saved in h5 file
         """
 
         # Create folder structure where to save the model
@@ -77,5 +85,10 @@ class Autoencoder(ModelBase):
         self.model.fit(self.x_train, self.y_train, epochs=self.epochs, batch_size=self.batch_size, validation_split=0.3,
                        callbacks=[tensorboard, early_stop, checkpoint])
 
-    def predict(self):
-        pass
+        return self.model
+
+    def predict(self, x_test, x_test_ind, duration):
+        """
+        It uses default behaviour from ModelBase
+        """
+        super(Autoencoder, self).predict(x_test, x_test_ind, duration)
