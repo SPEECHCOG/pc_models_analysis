@@ -38,7 +38,7 @@ PREDICTION_CONFIG = [
     ('durations', list, ['10'], False),
     ('use_last_layer', bool, False, False),
     ('window_shift', float, 0.01, False),
-    ('files_limit', int, 10, False)
+    ('files_limit', int, -1, False)
 ]
 
 LANGUAGES = ['english', 'mandarin', 'french', 'LANG1', 'LANG2']
