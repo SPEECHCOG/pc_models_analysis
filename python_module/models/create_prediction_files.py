@@ -47,7 +47,7 @@ def create_prediction_files(prediction, indices, folder_path, window_shift, limi
     :param folder_path: path to the folder where the files should be saved.
     :param window_shift:
     :param limit: the number of maximum files to create
-    :return:
+    :return: The total number of files created
     """
     # Verify the arrays have the same two first dimensions
     assert prediction.shape[0] == indices.shape[0]
@@ -89,3 +89,5 @@ def create_prediction_files(prediction, indices, folder_path, window_shift, limi
         idx_init = file_indices[i][0]
         idx_end = file_indices[i][1]
         create_output_file(prediction[idx_init:idx_end, :], os.path.join(folder_path, '%d.txt' % i), window_shift)
+
+    return len(file_indices)

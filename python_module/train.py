@@ -30,6 +30,8 @@ def train(config_path):
         model = Autoencoder()
         model.load_training_configuration(config, x_train, y_train)
         model.train()
+    else:
+        raise Exception('The model type "%s" is not supported' % model_type)
 
     print('Training of model "%s" finished' % model_type)
 

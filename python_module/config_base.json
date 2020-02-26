@@ -7,7 +7,7 @@
     "language": "mandarin",
     "model": {
       "name": "name_of_model",
-      "type": "type_of_model_options:autoencoder",
+      "type": "model_type_options:autoencoder",
       "epochs": 100,
       "early_stop_epochs": 10,
       "batch_size": 32,
@@ -17,7 +17,8 @@
   "prediction": {
     "output_path": "path_where_to_save_the_predictions",
     "model_path": "path_to_model_to_be_used_for_predictions",
-    "model_folder_name":  "name_of_model",
+    "model_folder_name":  "name_of_model_perhaps_with_timestamp",
+    "model_type": "model_type_options:autoencoder"
     "features_folder_name": "name_of_features_folder",
     "test_set": ["path_to_folder_containing_input_features_test_set", "variable_name_data", "variable_name_index"],
     "language": "mandarin",

@@ -47,7 +47,8 @@ class ModelBase(ABC):
         """
         self.output_folder = config['output_path']
         self.model_path = config['model_path']
-        self.name = config['model_folder_name']
+        self.model_folder_name = config['model_folder_name']
+        self.type = config['model_type']
         self.features_folder_name = config['features_folder_name']
         self.language = config['language']
         self.use_last_layer = config['use_last_layer']
@@ -86,10 +87,12 @@ class ModelBase(ABC):
         predictions = predictor.predict(x_test)
 
         # Create folder for predictions
-        full_predictions_folder_path = os.path.join(self.output_folder,self.name, self.features_folder_name,
-                                                    self.language, (duration + 's'))
+        full_predictions_folder_path = os.path.join(self.output_folder,self.model_folder_name,
+                                                    self.features_folder_name, self.language, (duration + 's'))
         os.makedirs(full_predictions_folder_path, exist_ok=True)
 
         # Create predictions text files
-        create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
-                                limit=self.files_limit)
+        total_files = create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
+                                              limit=self.files_limit)
+
+        print('Predictions of {0} with duration {1}s: {2} files'.format(self.language, duration, total_files))

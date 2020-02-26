@@ -20,7 +20,7 @@ def predict(config_path):
     config = read_configuration_json(config_path, False, True)['prediction']
 
     # Use correct model
-    model_type = config['model_folder_name']
+    model_type = config['model_type']
 
     if model_type == 'autoencoder':
         model = Autoencoder()
@@ -28,6 +28,8 @@ def predict(config_path):
         for duration in config['durations']:
             x_test, x_test_ind = load_test_set(config['test_set'], duration)
             model.predict(x_test, x_test_ind, duration)
+    else:
+        raise Exception('The model type "%s" is not supported' % model_type)
 
     print('Predictions for ' + config['language'] + ' with durations (' + ', '.join(config['durations']) + ') are '
           'finished')

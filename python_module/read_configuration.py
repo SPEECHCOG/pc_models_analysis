@@ -31,6 +31,7 @@ PREDICTION_CONFIG = [
     ('output_path', str, None, True),
     ('model_path', str, None, True),
     ('model_folder_name', str, None, True),
+    ('model_type', str, None, True),
     ('features_folder_name', str, None, True),
     ('test_set', list, None, True),
     ('language', str, 'mandarin', False),
