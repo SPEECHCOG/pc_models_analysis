@@ -11,7 +11,17 @@
       "epochs": 100,
       "early_stop_epochs": 10,
       "batch_size": 32,
-      "latent_dimension": 13
+      "latent_dimension": 13,
+      "apc": {
+        "prenet": true,
+        "prenet_layers": 6,
+        "prenet_dropout": 0.2,
+        "prenet_units": 128,
+        "rnn_layers": 3,
+        "rnn_dropout": 0.2,
+        "rnn_units":64,
+        "residual": true
+      }
     }
   },
   "prediction": {

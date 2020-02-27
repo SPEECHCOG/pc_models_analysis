@@ -24,7 +24,19 @@ TRAINING_MODEL_CONFIG = [
     ('epochs', int, 100, False),
     ('early_stop_epochs', int, 50, False),
     ('batch_size', int, 32, False),
-    ('latent_dimension', int, None, True)
+    ('latent_dimension', int, None, True),
+    ('apc', dict, None, False)
+]
+
+APC_CONFIG = [
+    ('prenet', bool, False, False),
+    ('prenet_layers', int, 0, False),
+    ('prenet_dropout', float, 0, False),
+    ('prenet_units', int, 0, False),
+    ('rnn_layers', int, 3, False),
+    ('rnn_dropout', int, 0, False),
+    ('rnn_units', int, 512, False),
+    ('residual', bool, True, False)
 ]
 
 PREDICTION_CONFIG = [
@@ -98,6 +110,15 @@ def validate_training(config):
     for path in [config['training']['train_in'][0], config['training']['train_out'][0]]:
         if not os.path.exists(path):
             raise Exception('The file does not exist: %s' % path)
+
+    # Validate models configuration
+    # apc
+    if config['training']['model']['type'] == 'apc':
+        if not config['training']['model']['apc']:
+            # The model is apc but there were not parameters, we need to create default parameters
+            config['training']['model']['apc']: {}
+        # validate parameters for apc model
+        validate_fields(config['training']['model']['apc'], APC_CONFIG)
 
     return config
 
