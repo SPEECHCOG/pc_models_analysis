@@ -38,6 +38,12 @@ class ModelBase(ABC):
         self.x_train = x_train
         self.y_train = y_train
 
+        # Create folder structure where to save the model
+        self.full_path_output_folder = os.path.join(self.output_folder, self.name, self.features_folder_name)
+        os.makedirs(self.full_path_output_folder, exist_ok=True)
+        self.logs_folder_path = os.path.join(self.full_path_output_folder, 'logs/')
+        os.makedirs(self.logs_folder_path, exist_ok=True)
+
     @abstractmethod
     def load_prediction_configuration(self, config):
         """

@@ -34,7 +34,7 @@ APC_CONFIG = [
     ('prenet_dropout', float, 0, False),
     ('prenet_units', int, 0, False),
     ('rnn_layers', int, 3, False),
-    ('rnn_dropout', int, 0, False),
+    ('rnn_dropout', float, 0, False),
     ('rnn_units', int, 512, False),
     ('residual', bool, True, False)
 ]

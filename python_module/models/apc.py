@@ -6,8 +6,13 @@ Autoregressive Predictive Coding model
 This corresponds to a translation from the Pytorch implementation
 (https://github.com/iamyuanchung/Autoregressive-Predictive-Coding) to Keras implementation
 """
+import os
+from datetime import datetime
+
+from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D
 from keras.models import Model
+from keras.optimizers import Adam
 
 from models.model_base import ModelBase
 
@@ -18,7 +23,31 @@ class APCModel(ModelBase):
         pass
 
     def train(self):
-        pass
+        """
+        Train APC model, optimiser adam and loss L1 (mean absolute error)
+        :return: an APC trained model. The model is also saved in the specified folder (output_path param in the
+                 training configuration)
+        """
+        # Configuration of learning process
+        adam = Adam(lr=0.001)
+        self.model.compile(optimizer=adam, loss='mean_absolute_error')
+
+        # Callbacks for training
+        # Adding early stop based on validation loss and saving best model for later prediction
+        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
+        checkpoint = ModelCheckpoint(os.path.join(self.full_path_output_folder, self.language +
+                                                  datetime.now().strftime("_%Y_%m_%d-%H_%M") + '.h5'),
+                                     monitor='val_loss', mode='min', verbose=1, save_best_only=True)
+
+        # Tensorboard
+        log_dir = os.path.join(self.logs_folder_path, datetime.now().strftime("%Y_%m_%d-%H_%M"))
+        tensorboard = TensorBoard(log_dir=log_dir, write_graph=True)
+
+        # Train the model
+        self.model.fit(self.x_train, self.y_train, epochs=self.epochs, batch_size=self.batch_size, validation_split=0.3,
+                       callbacks=[tensorboard, early_stop, checkpoint])
+
+        return self.model
 
     def predict(self, x_test, x_test_ind, duration):
         pass
@@ -58,35 +87,50 @@ class APCModel(ModelBase):
         rnn_input = input_feats
         if self.prenet:
             for i in range(self.prenet_layers):
-                rnn_input = Dense(self.prenet_units, activation='ReLU', name='prenet_linear_' + str(i))(rnn_input)
+                rnn_input = Dense(self.prenet_units, activation='relu', name='prenet_linear_' + str(i))(rnn_input)
                 rnn_input = Dropout(self.prenet_dropout, name='prenet_dropout_'+str(i))(rnn_input)
 
         # RNN
         for i in range(self.rnn_layers):
             # TODO Padding for sequences is not yet implemented
             if i+1 < self.rnn_layers:
-                # All GRU layers will have rnn_units units
-                rnn_output = GRU(self.rnn_units, name='rnn_layer_'+str(i))(rnn_input)
+                # All GRU layers will have rnn_units units except last one
+                rnn_output = GRU(self.rnn_units, return_sequences=True, name='rnn_layer_'+str(i))(rnn_input)
             else:
                 # Last GRU layer will have latent_dimension units
-                rnn_output = GRU(self.latent_dimension, name='latent_layer')(rnn_input)
+                if self.residual and self.latent_dimension == self.rnn_units:
+                    # The latent representation will be then the output of the residual connection.
+                    rnn_output = GRU(self.latent_dimension, return_sequences=True, name='rnn_layer_'+str(i))(rnn_input)
+                else:
+                    rnn_output = GRU(self.latent_dimension, return_sequences=True, name='latent_layer')(rnn_input)
 
             if i+1 < self.rnn_layers:
                 # Dropout to all layers except last layer
-                rnn_output = Dropout(self.rnn_dropout, name='rnn_dropout_'+str(i))(rnn_input)
+                rnn_output = Dropout(self.rnn_dropout, name='rnn_dropout_'+str(i))(rnn_output)
 
             if self.residual:
-                residual_last = (i+1 == self.rnn_layers and self.latent_dimension == self.rnn_units)
                 # residual connection is applied to last layer if the latent dimension and rnn_units are the same,
-                # otherwise is omitted.
-                if residual_last or (i+1 < self.rnn_layers):
+                # otherwise is omitted. And to the first layer if the PreNet units and RNN units are the same,
+                # otherwise is omitted also for first layer.
+                residual_last = (i+1 == self.rnn_layers and self.latent_dimension == self.rnn_units)
+                residual_first = (i == 0 and self.prenet_units == self.rnn_units)
+
+                if (i+1 < self.rnn_layers and i != 0) or residual_first:
                     rnn_input = Add(name='rnn_residual_'+str(i))([rnn_input, rnn_output])
+
+                # Update output for next layer (PostNet) if this is the last layer. This will also be the latent
+                # representation.
+                if residual_last:
+                    rnn_output = Add(name='latent_layer')([rnn_input, rnn_output])
+
+                # Update input for next layer
+                if not residual_first and i == 0:
+                    # Residual connection won't be applied but we need to update input value for next RNN layer
+                    # to the output of RNN + dropout
+                    rnn_input = rnn_output
             else:
                 # Output of the dropout or RNN layer in the case of the last layer
                 rnn_input = rnn_output
-
-        # The last rnn_input is the last output of the RNN
-        rnn_output = rnn_input
 
         # PostNet
         postnet_layer = Conv1D(self.features, kernel_size=1, padding='same', name='postnet_conv1d')(rnn_output)

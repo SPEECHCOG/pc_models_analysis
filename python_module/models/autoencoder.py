@@ -60,12 +60,6 @@ class Autoencoder(ModelBase):
         :return: a trained model. The model saved in h5 file
         """
 
-        # Create folder structure where to save the model
-        full_path_output_folder = os.path.join(self.output_folder,self.name, self.features_folder_name)
-        os.makedirs(full_path_output_folder, exist_ok=True)
-        logs_folder_path = os.path.join(full_path_output_folder, 'logs/')
-        os.makedirs(logs_folder_path, exist_ok=True)
-
         # Configuration of learning process
         self.model.compile(optimizer='adam', loss='mean_absolute_error', metrics=['mean_absolute_error'])
 
@@ -73,12 +67,12 @@ class Autoencoder(ModelBase):
         # Adding early stop based on validation loss and saving best model for later prediction
 
         early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
-        checkpoint = ModelCheckpoint(os.path.join(full_path_output_folder, self.language +
+        checkpoint = ModelCheckpoint(os.path.join(self.full_path_output_folder, self.language +
                                                   datetime.now().strftime("_%Y_%m_%d-%H_%M") + '.h5'),
                                      monitor='val_mean_absolute_error', mode='min', verbose=1, save_best_only=True)
 
         # Tensorboard
-        log_dir = os.path.join(logs_folder_path, datetime.now().strftime("%Y_%m_%d-%H_%M"))
+        log_dir = os.path.join(self.logs_folder_path, datetime.now().strftime("%Y_%m_%d-%H_%M"))
         tensorboard = TensorBoard(log_dir=log_dir, write_graph=True)
 
         # Train the model
