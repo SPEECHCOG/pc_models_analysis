@@ -50,7 +50,7 @@ class APCModel(ModelBase):
 
         # Tensorboard
         log_dir = os.path.join(self.logs_folder_path, datetime.now().strftime("%Y_%m_%d-%H_%M"))
-        tensorboard = TensorBoard(log_dir=log_dir, write_graph=True)
+        tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
 
         # Train the model
         self.model.fit(self.x_train, self.y_train, epochs=self.epochs, batch_size=self.batch_size, validation_split=0.3,

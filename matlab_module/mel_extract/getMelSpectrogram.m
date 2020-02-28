@@ -33,7 +33,7 @@ for k=1:length(data)
     win_shift_samples = round(fs*window_shift);
     
     mel_ = melSpectrogram(input, fs, 'WindowLength', win_len_samples, ...
-        'OverlapLength', win_shift_samples, 'NumBands', bands);
+        'OverlapLength', win_shift_samples, 'NumBands', bands)';
     if is_log
         % Compute a stabilized log to get log-magnitude mel-scale 
         % spectrograms. (Tensorflow api doc)
