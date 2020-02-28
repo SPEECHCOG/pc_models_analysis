@@ -8,7 +8,7 @@ import os
 from abc import ABC, abstractmethod
 
 from keras.models import Model
-from keras.engine.saving import load_model
+from tensorflow.keras.models import load_model
 
 from models.create_prediction_files import create_prediction_files
 

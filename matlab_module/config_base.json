@@ -12,11 +12,12 @@
     "window_shift": 0.01,
     "sample_length": 2000,
     "method": {
-      "name":"feature_extraction_method_options:mfcc",
+      "name":"feature_extraction_method_options:mfcc,mel,logmel",
       "delta": true,
       "delta_delta": true,
       "cmvn": true,
-      "folder_name": "name_of_folder_where_to_save_the_features"
+      "folder_name": "name_of_folder_where_to_save_the_features",
+      "bands": 80
     }
   }
 }

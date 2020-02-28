@@ -1,6 +1,6 @@
 function configuration = readConfiguration()
 %%%
-% @author: María Andrea Cruz Blandón
+% @author María Andrea Cruz Blandón
 % @date 24.02.2020
 % This scripts reads a configuration file in JSON format. It returns the
 % read configuration in the cell variable configuration.
@@ -33,6 +33,7 @@ catch
     configuration.feature_extraction.method.delta_delta = true;
     configuration.feature_extraction.method.cmvn = true;
     configuration.feature_extraction.method.folder_name = 'mfcc';
+    configuration.feature_extraction.method.bands = 0;
 end
 
 % verify JSON structure, avoid if default configuration is used.
@@ -197,6 +198,22 @@ if ~default
                  'exist. Method name will be used instead']);
         configuration.feature_extraction.method.folder_name = ...
             configuration.feature_extraction.method.name;
+    end
+    
+    try    
+        if strcmp(configuration.feature_extraction.method.name, 'mel') ...
+                || strcmp(configuration.feature_extraction.method.name, ...
+                'logmel')
+            if mod(configuration.feature_extraction.method.bands,1) ~= 0
+                warning(['feature_extraction.method.bands should be ' ...
+                         'integer. 80 bands will be used instead']);
+                configuration.feature_extraction.method.bands = 80;
+            end
+        end
+    catch
+        warning(['feature_extraction.method.bands does not ' ...
+                 'exist. 80 bands will be used instead']);
+        configuration.feature_extraction.method.bands = 80;
     end
 end
 end

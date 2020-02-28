@@ -9,18 +9,27 @@ This corresponds to a translation from the Pytorch implementation
 import os
 from datetime import datetime
 
-from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
-from keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D
-from keras.models import Model
-from keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
+from tensorflow.keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
 
 from models.model_base import ModelBase
+
+import tensorflow as tf
+physical_devices = tf.config.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
 
 class APCModel(ModelBase):
 
     def load_prediction_configuration(self, config):
-        pass
+        """
+        It uses implementation from ModelBase
+        :param config: dictionary with the configuration for predictions
+        :return: the instance model have all configuration parameters from config
+        """
+        super(APCModel, self).load_prediction_configuration(config)
 
     def train(self):
         """
@@ -50,7 +59,14 @@ class APCModel(ModelBase):
         return self.model
 
     def predict(self, x_test, x_test_ind, duration):
-        pass
+        """
+        It uses implementation from ModelBase
+        :param x_test: test input features
+        :param x_test_ind: indices mapping
+        :param duration: string that states the duration in seconds of test files
+        :return: predictions files
+        """
+        super(APCModel, self).predict(x_test, x_test_ind, duration)
 
     def load_training_configuration(self, config, x_train, y_train):
         """
