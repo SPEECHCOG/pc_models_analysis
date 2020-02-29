@@ -27,7 +27,7 @@ for k = 1:length(filenames)
     M = [tt features{k}];
     
     %csvwrite(fname,M);
-    dlmwrite(fname,M,'delimiter',' ');
+    dlmwrite(fname,M,'delimiter',' ', 'precision', '%4f');
     
 end
 

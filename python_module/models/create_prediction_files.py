@@ -7,6 +7,8 @@
 import os
 import numpy as np
 
+from astropy.io import ascii
+
 
 def calculate_timestamps(n_frames, window_shift):
     """
@@ -32,7 +34,13 @@ def create_output_file(features, file_path, window_shift):
     timestamps = calculate_timestamps(n_frames, window_shift)
 
     # save txt file
-    np.savetxt(file_path, np.c_[timestamps, features], fmt='%5.5f', delimiter=' ')
+    # np.savetxt(file_path, np.c_[timestamps, features], delimiter=' ', fmt='%s')
+    feats = np.c_[timestamps, features]
+
+    formats = {'col0': '%.6f'}
+    for j in range(features.shape[1]):
+        formats['col'+str(j+1)] = '%.6f'
+    ascii.write(feats, file_path, format='no_header', delimiter=' ', formats=formats, overwrite=True)
 
 
 def create_prediction_files(prediction, indices, folder_path, window_shift, limit=None):
@@ -63,6 +71,7 @@ def create_prediction_files(prediction, indices, folder_path, window_shift, limi
 
     # A list of tuples indicating the indices of each source file. (init, end) init and end indices in the flatted array
     file_indices = []
+    file_names = []
 
     prev = indices[0, 0]  # first file id
     init = 0
@@ -79,15 +88,17 @@ def create_prediction_files(prediction, indices, folder_path, window_shift, limi
         # Update file indices if the index changed or if we have reached the last element in the array
         if indices[i, 0] != prev:
             file_indices.append((init, i))
+            file_names.append(prev)
             prev = indices[i, 0]
             init = i
         if i == total_frames - 1:
+            file_names.append(prev)
             file_indices.append((init, total_frames))
 
     # writes files
     for i in range(len(file_indices)):
         idx_init = file_indices[i][0]
         idx_end = file_indices[i][1]
-        create_output_file(prediction[idx_init:idx_end, :], os.path.join(folder_path, '%d.txt' % i), window_shift)
+        create_output_file(prediction[idx_init:idx_end, :], os.path.join(folder_path, '%d.txt' % file_names[i]), window_shift)
 
     return len(file_indices)

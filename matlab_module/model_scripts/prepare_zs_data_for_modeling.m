@@ -145,7 +145,8 @@ for language=config_feats.languages
             F_test = getMFCCs( ...
                 ZS.(language{1}).test.(['filename_' duration{1}]), ...
                 1,'white', 1000,config_feats.window_length, ...
-                config_feats.window_shift,1,0);            
+                config_feats.window_shift,1,0);
+            ZS.(language{1}).test.(['features_' duration{1}]) = F_test;
         elseif strcmp(config_feats.method.name, 'mel')
             F_test = getMelSpectrogram( ...
                 ZS.(language{1}).test.(['filename_' duration{1}]), ...
@@ -168,7 +169,9 @@ for language=config_feats.languages
         for k = 1:length(F_test)
             F_test_all(wloc:wloc+size(F_test{k},1)-1,:) = F_test{k};
             % store signal ID
-            F_test_ind(wloc:wloc+size(F_test{k},1)-1,1) = k; 
+            [~,fil,~] = fileparts(ZS.(language{1}).test.(['filename_' ...
+                duration{1}]){k});
+            F_test_ind(wloc:wloc+size(F_test{k},1)-1,1) = str2num(fil); 
             % store frame ID
             F_test_ind(wloc:wloc+size(F_test{k},1)-1,2) = ... 
                 1:size(F_test{k},1); 
@@ -176,18 +179,18 @@ for language=config_feats.languages
         end
 
         % Fix Nans and Infs
-        F_test_all(isnan(F_test_all)) = 0;
-        F_test_all(isinf(F_test_all)) = 0;
+        %F_test_all(isnan(F_test_all)) = 0;
+        %F_test_all(isinf(F_test_all)) = 0;
 
         % Mean and variance normalize with the _same_ means and variances 
         % as the training data
-        F_test_all = F_test_all-repmat(meme,size(F_test_all,1),1);
-        F_test_all = F_test_all./repmat(devi,size(F_test_all,1),1);
+        %F_test_all = F_test_all-repmat(meme,size(F_test_all,1),1);
+        %F_test_all = F_test_all./repmat(devi,size(F_test_all,1),1);
 
         % Put into tensor of the same format as training data
-        X_test_in = zeros(round(size(F_test_all,1)/seqlen)-1, ...
+        X_test_in = zeros(round(size(F_test_all,1)/seqlen), ...
                           seqlen,size(F_train{1},2));
-        X_test_ind = zeros(round(size(F_test_all,1)/seqlen)-1,seqlen,2);
+        X_test_ind = zeros(round(size(F_test_all,1)/seqlen),seqlen,2);
 
         wloc = 1;
         for k = 1:size(X_test_in)
@@ -198,6 +201,10 @@ for language=config_feats.languages
         
         save(fullfile(full_feats_path, ['test_', duration{1} 's.mat']), ... 
             'X_test_in','X_test_ind');
+        
+        %ZS = synthesizeTimeStamps(ZS,config_feats.window_shift);
+        %addTrack1FeaturesToSubmission(ZS,configuration.submission.name, ...
+        %    configuration.submission.path)
     end
   
 end
