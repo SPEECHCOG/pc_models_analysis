@@ -7,8 +7,6 @@
 import os
 import numpy as np
 
-from astropy.io import ascii
-
 
 def calculate_timestamps(n_frames, window_shift):
     """
@@ -34,13 +32,7 @@ def create_output_file(features, file_path, window_shift):
     timestamps = calculate_timestamps(n_frames, window_shift)
 
     # save txt file
-    # np.savetxt(file_path, np.c_[timestamps, features], delimiter=' ', fmt='%s')
-    feats = np.c_[timestamps, features]
-
-    formats = {'col0': '%.6f'}
-    for j in range(features.shape[1]):
-        formats['col'+str(j+1)] = '%.6f'
-    ascii.write(feats, file_path, format='no_header', delimiter=' ', formats=formats, overwrite=True)
+    np.savetxt(file_path, np.c_[timestamps, features], delimiter=' ', fmt='%.5f')
 
 
 def create_prediction_files(prediction, indices, folder_path, window_shift, limit=None):
