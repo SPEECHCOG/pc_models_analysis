@@ -16,7 +16,6 @@ def calculate_timestamps(n_frames, window_shift):
     :return: a numpy array with the timestamps for all the frames
     """
     timestamps = np.arange(window_shift/2, n_frames*window_shift, window_shift)
-
     return timestamps
 
 
@@ -88,6 +87,7 @@ def create_prediction_files(prediction, indices, folder_path, window_shift, limi
             file_indices.append((init, total_frames))
 
     # writes files
+    total_files = 0
     for i in range(len(file_indices)):
         idx_init = file_indices[i][0]
         idx_end = file_indices[i][1]
@@ -96,5 +96,6 @@ def create_prediction_files(prediction, indices, folder_path, window_shift, limi
             # output
             create_output_file(prediction[idx_init:idx_end, :],
                                os.path.join(folder_path, '%d.txt' % file_names[i]), window_shift)
+            total_files += 1
 
-    return len(file_indices)
+    return total_files

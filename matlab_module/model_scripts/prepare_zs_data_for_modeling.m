@@ -5,6 +5,7 @@ clear all
 curdir = fileparts(which('ZS2020_demo_pipeline.m'));
 addpath([curdir '/MFCC_extract/']);
 addpath([curdir '/mel_extract/']);
+addpath([curdir '/mel_extract/lib_voicebox/']);
 addpath([curdir '/aux/']);
 addpath([curdir '/misc/']);
 
@@ -84,13 +85,13 @@ for language=config_feats.languages
     shift3 = 40;
 
     % Shift original features values by the given amounts
-    F_all_out1 = F_all(shift1+1:end);
-    F_all_out2 = F_all(shift2+1:end);
-    F_all_out3 = F_all(shift3+1:end);
+    F_all_out1 = F_all(shift1+1:end,:);
+    F_all_out2 = F_all(shift2+1:end,:);
+    F_all_out3 = F_all(shift3+1:end,:);
     
-    F_all_in1 = F_all(1:end-shift1);
-    F_all_in2 = F_all(1:end-shift2);
-    F_all_in3 = F_all(1:end-shift3);
+    F_all_in1 = F_all(1:end-shift1,:);
+    F_all_in2 = F_all(1:end-shift2,:);
+    F_all_in3 = F_all(1:end-shift3,:);
     
     % Split features into sample_length(s) sequences and store in a tensor 
     % called X_in, that is of format [training_sample x time x feats_dim] 
@@ -166,7 +167,6 @@ for language=config_feats.languages
     save(fullfile(full_feats_path, 'train_out2.mat'), 'X_out2');
     save(fullfile(full_feats_path, 'train_out3.mat'), 'X_out3');
 
-
     % Repeat the process for test data
     for duration=config_feats.durations
         if strcmp(config_feats.method.name, 'mfcc')
@@ -188,10 +188,11 @@ for language=config_feats.languages
         end
         
         % Concatenate into one long matrix
-        F_test_all = zeros(totlen,size(F_test{1},2));
+        totlen_test = sum(cellfun(@length,F_test));
+        F_test_all = zeros(totlen_test,feature_size);
         % this one keeps track of from which signal and frame the features
         % vectors came from
-        F_test_ind = zeros(totlen,2); 
+        F_test_ind = zeros(totlen_test,2); 
         
         wloc = 1;
         for k = 1:length(F_test)
@@ -229,8 +230,7 @@ for language=config_feats.languages
                 zeros(padding_size,feature_size);
             F_test_ind(wloc:wloc+padding_size-1,1) = -1;
             F_test_ind(wloc:wloc+padding_size-1,2) = -1;
-        end    
-        
+        end
         
         X_test_in = zeros(size(F_test_all,1)/seqlen, ...
                           seqlen,size(F_train{1},2));

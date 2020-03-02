@@ -29,18 +29,9 @@ for k=1:length(data)
         input = resample(input,16000,fs);
         fs = 16000;
     end
-    win_len_samples = round(fs*window_length);
-    win_shift_samples = round(fs*window_shift);
     
-    mel_ = melSpectrogram(input, fs, 'WindowLength', win_len_samples, ...
-        'OverlapLength', win_shift_samples, 'NumBands', bands)';
-    if is_log
-        % Compute a stabilized log to get log-magnitude mel-scale 
-        % spectrograms. (Tensorflow api doc)
-        MEL{k} = log(mel_ + eps);
-    else
-        MEL{k} = mel_;
-    end
+    MEL{k} = getLogMel(input, window_length, window_shift, fs, bands, ...
+        is_log);
     
     % Normalisation per utterance
     % Make sure there are no NaNs or Infs
