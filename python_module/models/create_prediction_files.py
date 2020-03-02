@@ -91,6 +91,10 @@ def create_prediction_files(prediction, indices, folder_path, window_shift, limi
     for i in range(len(file_indices)):
         idx_init = file_indices[i][0]
         idx_end = file_indices[i][1]
-        create_output_file(prediction[idx_init:idx_end, :], os.path.join(folder_path, '%d.txt' % file_names[i]), window_shift)
+        if file_names[i] != -1:
+            # frames marked with -1 as the file id, are reset/padding frames. Therefore won't be included into the
+            # output
+            create_output_file(prediction[idx_init:idx_end, :],
+                               os.path.join(folder_path, '%d.txt' % file_names[i]), window_shift)
 
     return len(file_indices)
