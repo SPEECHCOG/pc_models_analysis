@@ -42,6 +42,20 @@ for k=1:length(data)
         MEL{k} = mel_;
     end
     
+    % Normalisation per utterance
+    % Make sure there are no NaNs or Infs
+    MEL{k}(isnan(MEL{k})) = 0;
+    MEL{k}(isinf(MEL{k})) = 0;
+
+    % Compute mean and standard deviation across all frames 
+    mean_mel = nanmean(MEL{k}); 
+    std_mel = nanstd(MEL{k});
+
+    % Mean and std normalise all time steps  
+    MEL{k} = MEL{k}-repmat(mean_mel,size(MEL{k},1),1);
+    MEL{k} = MEL{k}./repmat(std_mel,size(MEL{k},1),1);
+
+    % Progress bar
     procbar(k,N);
 end
 
