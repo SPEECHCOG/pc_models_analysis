@@ -43,7 +43,7 @@ for language=config_feats.languages
     % total number of frames
     totlen = sum(cellfun(@length,F_train)); 
     % "reset" after each audio, except last one. Half of a sample
-    reset_size = round(seqlen/2)-1;
+    reset_size = round(seqlen/2);
     reset_sample = zeros(reset_size,feature_size);
     
     % Concatenate all feature data into one large matrix  
@@ -55,7 +55,7 @@ for language=config_feats.languages
         wloc = wloc+size(F_train{k},1);
         % introduce reset
         if k < length(F_train)
-            F_all(wloc:wloc+reset_size,:) = reset_sample;
+            F_all(wloc:wloc+reset_size-1,:) = reset_sample;
             wloc = wloc+reset_size;
         end
     end
@@ -88,9 +88,9 @@ for language=config_feats.languages
     F_all_out2 = F_all(shift2+1:end);
     F_all_out3 = F_all(shift3+1:end);
     
-    F_all_in1 = F_in(1:end-shift1);
-    F_all_in2 = F_in(1:end-shift2);
-    F_all_in3 = F_in(1:end-shift3);
+    F_all_in1 = F_all(1:end-shift1);
+    F_all_in2 = F_all(1:end-shift2);
+    F_all_in3 = F_all(1:end-shift3);
     
     % Split features into sample_length(s) sequences and store in a tensor 
     % called X_in, that is of format [training_sample x time x feats_dim] 
@@ -207,9 +207,9 @@ for language=config_feats.languages
             % introduce reset. -1 id for file as we should ignore those 
             % reset samples.
             if k < length(F_test)
-                F_test_all(wloc:wloc+reset_size,:) = reset_sample;
-                F_test_ind(wloc:wloc+reset_size,1) = -1;
-                F_test_ind(wloc:wloc+reset_size,2) = -1;
+                F_test_all(wloc:wloc+reset_size-1,:) = reset_sample;
+                F_test_ind(wloc:wloc+reset_size-1,1) = -1;
+                F_test_ind(wloc:wloc+reset_size-1,2) = -1;
                 wloc = wloc+reset_size;
             end
         end
@@ -225,8 +225,10 @@ for language=config_feats.languages
         
         if mod(size(F_test_all,1), seqlen) ~= 0
             padding_size = seqlen - mod(size(F_test_all,1), seqlen);
-            F_test_all(wloc:wloc+padding_size -1,:) = ...
+            F_test_all(wloc:wloc+padding_size-1,:) = ...
                 zeros(padding_size,feature_size);
+            F_test_ind(wloc:wloc+padding_size-1,1) = -1;
+            F_test_ind(wloc:wloc+padding_size-1,2) = -1;
         end    
         
         
