@@ -7,7 +7,7 @@ all the models and independently.
 import os
 from abc import ABC, abstractmethod
 
-from keras.models import Model
+from tensorflow.keras.models import Model
 from tensorflow.keras.models import load_model
 
 from models.create_prediction_files import create_prediction_files
