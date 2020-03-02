@@ -33,16 +33,31 @@ for language=config_feats.languages
             config_feats.window_length, config_feats.window_shift, ...
             config_feats.method.bands, true);
     end
+    
+    % Sample size
+    seqlen = round(config_feats.sample_length / config_feats.window_shift);
+    
+    % Features size
+    feature_size = size(F_train{1},2);
   
     % total number of frames
     totlen = sum(cellfun(@length,F_train)); 
-
+    % "reset" after each audio, except last one. Half of a sample
+    reset_size = round(seqlen/2)-1;
+    reset_sample = zeros(reset_size,feature_size);
+    
     % Concatenate all feature data into one large matrix  
-    F_all = zeros(totlen,size(F_train{1},2));
+    % F_all total_frams x features_size 
+    F_all = zeros(totlen,feature_size);
     wloc = 1;
     for k = 1:length(F_train)
         F_all(wloc:wloc+size(F_train{k},1)-1,:) = F_train{k};
         wloc = wloc+size(F_train{k},1);
+        % introduce reset
+        if k < length(F_train)
+            F_all(wloc:wloc+reset_size,:) = reset_sample;
+            wloc = wloc+reset_size;
+        end
     end
 
     % F_all contains now all features frames of the training set
@@ -50,15 +65,7 @@ for language=config_feats.languages
     F_all(isnan(F_all)) = 0;
     F_all(isinf(F_all)) = 0;
 
-    % Compute mean and SD across all frames 
-    meme = nanmean(F_all); 
-    devi = nanstd(F_all);
-
-    % Mean and variance normalize all time steps  
-    F_all = F_all-repmat(meme,size(F_all,1),1);
-    F_all = F_all./repmat(devi,size(F_all,1),1);
-
-
+    
     % NOTE:
     % Hack to cut training data: allow max 2 GB training data, because 
     % scipy cannot read larger than that .mat files. This doesn't cut data 
@@ -85,8 +92,6 @@ for language=config_feats.languages
     % Split features into sample_length(s) sequences and store in a tensor 
     % called X_in, that is of format [training_sample x time x feats_dim] 
     % (the original no-shift version, and the three shifted versions).
-
-    seqlen = round(config_feats.sample_length / config_feats.window_shift);
 
     X_in = zeros(round(size(F_all,1)/seqlen)-1,seqlen,size(F_train{1},2));
 
@@ -175,21 +180,33 @@ for language=config_feats.languages
             F_test_ind(wloc:wloc+size(F_test{k},1)-1,2) = ... 
                 1:size(F_test{k},1); 
             wloc = wloc+size(F_test{k},1);
+            % introduce reset. -1 id for file as we should ignore those 
+            % reset samples.
+            if k < length(F_test)
+                F_test_all(wloc:wloc+reset_size,:) = reset_sample;
+                F_test_ind(wloc:wloc+reset_size,1) = -1;
+                F_test_ind(wloc:wloc+reset_size,2) = -1;
+                wloc = wloc+reset_size;
+            end
         end
 
         % Fix Nans and Infs
         F_test_all(isnan(F_test_all)) = 0;
         F_test_all(isinf(F_test_all)) = 0;
 
-        % Mean and variance normalize with the _same_ means and variances 
-        % as the training data
-        F_test_all = F_test_all-repmat(meme,size(F_test_all,1),1);
-        F_test_all = F_test_all./repmat(devi,size(F_test_all,1),1);
-
         % Put into tensor of the same format as training data
-        X_test_in = zeros(floor(size(F_test_all,1)/seqlen), ...
+        % We need to generate all the test files, then, we need to pad last
+        % file if the test set is not mod 0 of the sample size.
+        if mod(size(F_test_all,1), seqlen) ~= 0
+            padding_size = seqlen - mod(size(F_test_all,1), seqlen);
+            F_test_all(wloc:wloc+padding_size -1,:) = ...
+                zeros(padding_size,feature_size);
+        end    
+        
+        
+        X_test_in = zeros(size(F_test_all,1)/seqlen, ...
                           seqlen,size(F_train{1},2));
-        X_test_ind = zeros(floor(size(F_test_all,1)/seqlen),seqlen,2);
+        X_test_ind = zeros(size(F_test_all,1)/seqlen,seqlen,2);
 
         wloc = 1;
         for k = 1:size(X_test_in)
