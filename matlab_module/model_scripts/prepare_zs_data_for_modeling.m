@@ -84,24 +84,46 @@ for language=config_feats.languages
     shift3 = 40;
 
     % Shift original features values by the given amounts
-    F_all_out1 = circshift(F_all,-shift1);
-    F_all_out2 = circshift(F_all,-shift2);
-    F_all_out3 = circshift(F_all,-shift3);
-
-
+    F_all_out1 = F_all(shift1+1:end);
+    F_all_out2 = F_all(shift2+1:end);
+    F_all_out3 = F_all(shift3+1:end);
+    
+    F_all_in1 = F_in(1:end-shift1);
+    F_all_in2 = F_in(1:end-shift2);
+    F_all_in3 = F_in(1:end-shift3);
+    
     % Split features into sample_length(s) sequences and store in a tensor 
     % called X_in, that is of format [training_sample x time x feats_dim] 
     % (the original no-shift version, and the three shifted versions).
 
-    X_in = zeros(round(size(F_all,1)/seqlen)-1,seqlen,size(F_train{1},2));
+    X_in1 = zeros(floor(size(F_all_in1,1)/seqlen), ...
+        seqlen,size(F_train{1},2));
 
     wloc = 1;
-    for k = 1:size(X_in)
-       X_in(k,:,:) = F_all(wloc:wloc+seqlen-1,:);
+    for k = 1:size(X_in1)
+       X_in1(k,:,:) = F_all_in1(wloc:wloc+seqlen-1,:);
        wloc = wloc+seqlen;
     end
+    
+    X_in2 = zeros(floor(size(F_all_in2,1)/seqlen), ...
+        seqlen,size(F_train{1},2));
 
-    X_out1 = zeros(floor(size(F_all,1)/seqlen),seqlen, ...
+    wloc = 1;
+    for k = 1:size(X_in2)
+       X_in2(k,:,:) = F_all_in2(wloc:wloc+seqlen-1,:);
+       wloc = wloc+seqlen;
+    end
+    
+    X_in3 = zeros(floor(size(F_all_in3,1)/seqlen), ...
+        seqlen,size(F_train{1},2));
+
+    wloc = 1;
+    for k = 1:size(X_in3)
+       X_in3(k,:,:) = F_all_in3(wloc:wloc+seqlen-1,:);
+       wloc = wloc+seqlen;
+    end    
+
+    X_out1 = zeros(floor(size(F_all_out1,1)/seqlen),seqlen, ...
                    size(F_train{1},2));
 
     wloc = 1;
@@ -110,7 +132,7 @@ for language=config_feats.languages
        wloc = wloc+seqlen;
     end
 
-    X_out2 = zeros(floor(size(F_all,1)/seqlen),seqlen, ...
+    X_out2 = zeros(floor(size(F_all_out2,1)/seqlen),seqlen, ...
                    size(F_train{1},2));
 
     wloc = 1;
@@ -120,7 +142,7 @@ for language=config_feats.languages
     end
 
 
-    X_out3 = zeros(floor(size(F_all,1)/seqlen),seqlen, ...
+    X_out3 = zeros(floor(size(F_all_out3,1)/seqlen),seqlen, ...
                    size(F_train{1},2));
 
     wloc = 1;
@@ -137,7 +159,9 @@ for language=config_feats.languages
         config_feats.method.folder_name, language{1});
     mkdir(full_feats_path);
     
-    save(fullfile(full_feats_path, 'train_in.mat'), 'X_in');
+    save(fullfile(full_feats_path, 'train_in1.mat'), 'X_in1');
+    save(fullfile(full_feats_path, 'train_in2.mat'), 'X_in2');
+    save(fullfile(full_feats_path, 'train_in3.mat'), 'X_in3');
     save(fullfile(full_feats_path, 'train_out1.mat'), 'X_out1');
     save(fullfile(full_feats_path, 'train_out2.mat'), 'X_out2');
     save(fullfile(full_feats_path, 'train_out3.mat'), 'X_out3');
@@ -197,6 +221,8 @@ for language=config_feats.languages
         % Put into tensor of the same format as training data
         % We need to generate all the test files, then, we need to pad last
         % file if the test set is not mod 0 of the sample size.
+        % last value of wloc is used.
+        
         if mod(size(F_test_all,1), seqlen) ~= 0
             padding_size = seqlen - mod(size(F_test_all,1), seqlen);
             F_test_all(wloc:wloc+padding_size -1,:) = ...
