@@ -10,6 +10,7 @@ addpath([curdir '/aux/']);
 addpath([curdir '/misc/']);
 
 % Read configuration:
+
 configuration = readConfiguration();
 config_feats = configuration.feature_extraction;
 
@@ -54,10 +55,12 @@ for language=config_feats.languages
     for k = 1:length(F_train)
         F_all(wloc:wloc+size(F_train{k},1)-1,:) = F_train{k};
         wloc = wloc+size(F_train{k},1);
-        % introduce reset
-        if k < length(F_train)
-            F_all(wloc:wloc+reset_size-1,:) = reset_sample;
-            wloc = wloc+reset_size;
+        % introduce reset is set true in configuration file
+        if config_feats.reset_samples
+            if k < length(F_train)
+                F_all(wloc:wloc+reset_size-1,:) = reset_sample;
+                wloc = wloc+reset_size;
+            end
         end
     end
 
@@ -205,13 +208,15 @@ for language=config_feats.languages
             F_test_ind(wloc:wloc+size(F_test{k},1)-1,2) = ... 
                 1:size(F_test{k},1); 
             wloc = wloc+size(F_test{k},1);
-            % introduce reset. -1 id for file as we should ignore those 
-            % reset samples.
-            if k < length(F_test)
-                F_test_all(wloc:wloc+reset_size-1,:) = reset_sample;
-                F_test_ind(wloc:wloc+reset_size-1,1) = -1;
-                F_test_ind(wloc:wloc+reset_size-1,2) = -1;
-                wloc = wloc+reset_size;
+            if config_feats.reset_samples
+                % introduce reset. -1 id for file as we should ignore those 
+                % reset samples.
+                if k < length(F_test)
+                    F_test_all(wloc:wloc+reset_size-1,:) = reset_sample;
+                    F_test_ind(wloc:wloc+reset_size-1,1) = -1;
+                    F_test_ind(wloc:wloc+reset_size-1,2) = -1;
+                    wloc = wloc+reset_size;
+                end
             end
         end
 

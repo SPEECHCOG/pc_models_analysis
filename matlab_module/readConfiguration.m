@@ -34,6 +34,7 @@ catch
     configuration.feature_extraction.method.cmvn = true;
     configuration.feature_extraction.method.folder_name = 'mfcc';
     configuration.feature_extraction.method.bands = 0;
+    configuration.feature_extraction.reset_samples = false;
 end
 
 % verify JSON structure, avoid if default configuration is used.
@@ -214,6 +215,18 @@ if ~default
         warning(['feature_extraction.method.bands does not ' ...
                  'exist. 80 bands will be used instead']);
         configuration.feature_extraction.method.bands = 80;
+    end
+    
+    try    
+        if ~islogical(configuration.feature_extraction.reset_samples)
+            warning(['feature_extraction.reset_samples should be '...
+                     'boolean. There will not be reset samples.']);
+            configuration.feature_extraction.reset_samples = false;
+        end
+    catch
+        warning(['feature_extraction.reset_samples does not exist. ' ... 
+                 'Default value will be used instead: false']);
+        configuration.feature_extraction.reset_samples = false;
     end
 end
 end
