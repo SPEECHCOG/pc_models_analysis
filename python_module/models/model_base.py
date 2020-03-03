@@ -24,6 +24,9 @@ class ModelBase(ABC):
         :param y_train: a numpy array with the output features
         :return: instance will have the configuration parameters
         """
+        # Configuration
+        self.configuration = config
+
         # properties from configuration file for training
         model_config = config['model']
         self.name = model_config['name']

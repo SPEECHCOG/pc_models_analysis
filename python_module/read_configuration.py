@@ -36,7 +36,8 @@ APC_CONFIG = [
     ('rnn_layers', int, 3, False),
     ('rnn_dropout', float, 0, False),
     ('rnn_units', int, 512, False),
-    ('residual', bool, True, False)
+    ('residual', bool, True, False),
+    ('learning_rate', float, 0.001, False)
 ]
 
 PREDICTION_CONFIG = [

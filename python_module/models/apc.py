@@ -1,4 +1,4 @@
-"""
+""""
 @date 26.02.2020
 Autoregressive Predictive Coding model
 [An unsupervised autoregressive model for speech representation learning]
@@ -23,6 +23,30 @@ tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
 class APCModel(ModelBase):
 
+    def write_log(self, file_path):
+        """
+        Write the log of the configuration parameters used for training an APC model
+        :param file_path: path where the file will be saved
+        :return: a text logfile
+        """
+        with open(file_path, 'w+', encoding='utf8') as f:
+            f.write('Training configuration: \n')
+            f.write('Source: ' + self.configuration['train_in'][0] + '\n')
+            f.write('Target: ' + self.configuration['train_out'][0] + '\n')
+            f.write('Features: ' + self.features_folder_name + '\n')
+            f.write('Language: ' + self.language + '\n\n')
+            f.write('Model configuration: \n')
+            f.write('epochs: ' + str(self.epochs) + '\n')
+            f.write('early stop epochs: ' + str(self.early_stop_epochs) + '\n')
+            f.write('batch size: ' + str(self.batch_size) + '\n')
+            f.write('latent dimension: ' + str(self.latent_dimension) + '\n\n')
+            f.write('APC configuration: \n')
+            for param in self.configuration['model']['apc']:
+                f.write(param + ': ' + str(self.configuration['model']['apc'][param]) + '\n')
+
+
+
+
     def load_prediction_configuration(self, config):
         """
         It uses implementation from ModelBase
@@ -38,15 +62,21 @@ class APCModel(ModelBase):
                  training configuration)
         """
         # Configuration of learning process
-        adam = Adam(lr=0.001)
+        adam = Adam(lr=self.learning_rate)
         self.model.compile(optimizer=adam, loss='mean_absolute_error')
+
+        # Model file name for checkpoint and log
+        model_file_name = os.path.join(self.full_path_output_folder, self.language +
+                                       datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+
+        # log
+        self.write_log(model_file_name + '.txt')
 
         # Callbacks for training
         # Adding early stop based on validation loss and saving best model for later prediction
         early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
-        checkpoint = ModelCheckpoint(os.path.join(self.full_path_output_folder, self.language +
-                                                  datetime.now().strftime("_%Y_%m_%d-%H_%M") + '.h5'),
-                                     monitor='val_loss', mode='min', verbose=1, save_best_only=True)
+        checkpoint = ModelCheckpoint( model_file_name + '.h5', monitor='val_loss', mode='min',
+                                      verbose=1, save_best_only=True)
 
         # Tensorboard
         log_dir = os.path.join(self.logs_folder_path, datetime.now().strftime("%Y_%m_%d-%H_%M"))
@@ -85,12 +115,13 @@ class APCModel(ModelBase):
         apc_config = config['model']['apc']
         self.prenet = apc_config['prenet']
         self.prenet_layers = apc_config['prenet_layers']
-        self.prenet_dropout = apc_config["prenet_dropout"]
-        self.prenet_units = apc_config["prenet_units"]
-        self.rnn_layers = apc_config["rnn_layers"]
-        self.rnn_dropout = apc_config["rnn_dropout"]
-        self.rnn_units = apc_config["rnn_units"]
-        self.residual = apc_config["residual"]
+        self.prenet_dropout = apc_config['prenet_dropout']
+        self.prenet_units = apc_config['prenet_units']
+        self.rnn_layers = apc_config['rnn_layers']
+        self.rnn_dropout = apc_config['rnn_dropout']
+        self.rnn_units = apc_config['rnn_units']
+        self.residual = apc_config['residual']
+        self.learning_rate = apc_config['learning_rate']
 
         # input size and number of features. Input is numpy array of size (samples, time-steps, features)
         self.input_shape = self.x_train.shape[1:]
