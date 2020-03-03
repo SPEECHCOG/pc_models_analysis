@@ -42,10 +42,11 @@ class APCModel(ModelBase):
             f.write('latent dimension: ' + str(self.latent_dimension) + '\n\n')
             f.write('APC configuration: \n')
             for param in self.configuration['model']['apc']:
-                f.write(param + ': ' + str(self.configuration['model']['apc'][param]) + '\n')
-
-
-
+                if param.startswith('prenet_'):
+                    if self.prenet:
+                        f.write(param + ': ' + str(self.configuration['model']['apc'][param]) + '\n')
+                else:
+                    f.write(param + ': ' + str(self.configuration['model']['apc'][param]) + '\n')
 
     def load_prediction_configuration(self, config):
         """
