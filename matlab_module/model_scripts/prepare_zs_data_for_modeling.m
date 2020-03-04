@@ -249,7 +249,7 @@ for language=config_feats.languages
         end
         
         save(fullfile(full_feats_path, ['test_', duration{1} 's.mat']), ... 
-            'X_test_in','X_test_ind');
+            'X_test_in','X_test_ind', '-v7.3');
     end
   
 end

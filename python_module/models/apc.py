@@ -9,11 +9,13 @@ This corresponds to a translation from the Pytorch implementation
 import os
 from datetime import datetime
 
+from sklearn.decomposition import PCA
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from tensorflow.keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
+from models.create_prediction_files import create_prediction_files
 from models.model_base import ModelBase
 
 import tensorflow as tf
@@ -91,13 +93,51 @@ class APCModel(ModelBase):
 
     def predict(self, x_test, x_test_ind, duration):
         """
-        It uses implementation from ModelBase
-        :param x_test: test input features
-        :param x_test_ind: indices mapping
-        :param duration: string that states the duration in seconds of test files
-        :return: predictions files
+        It predicts the output features for the test set (x_test) and output the predictions in text files using
+        (x_test_ind). Instead of directly using the full size of latent representation, we used PCA analysis to reduce
+        dimensionality.
+        :param x_test: a numpy array with the test set (samples of input features in the same format than those used
+                       for training the model). It has dimension samples x time-steps x features.
+        :param x_test_ind: a numpy array with the indices (number of frame in the source audio) for each sample. The
+                           dimension is samples x time-steps x 2 (where the first number is the source audio identifier,
+                           and the second one is the number of the frame in the audio).
+        :param duration: a string with the duration of the audio files (1, 10 or 120)
+        :return: predictions will be saved in text files. The folder structure is kept.
         """
-        super(APCModel, self).predict(x_test, x_test_ind, duration)
+        self.model = load_model(self.model_path)
+
+        if self.use_last_layer:
+            predictor = self.model
+        else:
+            # Prediction of model will use latent representation (intermediate layer)
+            input_layer = self.model.get_layer('input_layer').output
+            latent_layer = self.model.get_layer('latent_layer').output
+            predictor = Model(input_layer, latent_layer)
+
+        # Calculate predictions dimensions (samples, 200, latent-dimension)
+        predictions = predictor.predict(x_test)
+
+        # Apply PCA only for latent layer representations
+        if not self.use_last_layer:
+            pca = PCA(0.95) # Keep components that coverage 95% of variance
+            pred_orig_shape = predictions.shape
+            predictions = predictions.reshape(-1, predictions.shape[-1])
+            predictions = pca.fit_transform(predictions)
+            pred_orig_shape = list(pred_orig_shape)
+            pred_orig_shape[-1] = predictions.shape[-1]
+            pred_orig_shape = tuple(pred_orig_shape)
+            predictions = predictions.reshape(pred_orig_shape)
+
+        # Create folder for predictions
+        full_predictions_folder_path = os.path.join(self.output_folder,self.model_folder_name,
+                                                    self.features_folder_name, self.language, (duration + 's'))
+        os.makedirs(full_predictions_folder_path, exist_ok=True)
+
+        # Create predictions text files
+        total_files = create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
+                                              limit=self.files_limit)
+
+        print('Predictions of {0} with duration {1}s: {2} files'.format(self.language, duration, total_files))
 
     def load_training_configuration(self, config, x_train, y_train):
         """
