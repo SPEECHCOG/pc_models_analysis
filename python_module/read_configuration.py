@@ -189,12 +189,16 @@ def load_test_set(test_set, duration):
     :param duration: string specifying the test set duration (possible values 1, 10, 120)
     :return: two numpy arrays: test input features and indices of frames
     """
-    with h5py.File(os.path.join(test_set[0], ('test_' + duration + 's.mat')), 'r') as test_features:
-        # We need to transpose because order in matlab is different than in python and therefore the dimensions
-        # are transposed. For example: x (n,m,l) in matlab will be x (l,m,n) in python
-        # https://stackoverflow.com/a/39264426
-        x_test = np.array(test_features[test_set[1]]).transpose()
-        x_test_ind = np.array(test_features[test_set[2]]).transpose()
+    try:
+        with h5py.File(os.path.join(test_set[0], ('test_' + duration + 's.mat')), 'r') as test_features:
+            # We need to transpose because order in matlab is different than in python and therefore the dimensions
+            # are transposed. For example: x (n,m,l) in matlab will be x (l,m,n) in python
+            # https://stackoverflow.com/a/39264426
+            x_test = np.array(test_features[test_set[1]]).transpose()
+            x_test_ind = np.array(test_features[test_set[2]]).transpose()
+    except OSError:
+        x_test = scipy.io.loadmat(os.path.join(test_set[0], ('test_' + duration + 's.mat')))[test_set[1]]
+        x_test_ind = scipy.io.loadmat(os.path.join(test_set[0], ('test_' + duration + 's.mat')))[test_set[2]]
 
     return x_test, x_test_ind
 
