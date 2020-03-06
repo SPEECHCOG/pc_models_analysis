@@ -28,7 +28,8 @@ TRAINING_MODEL_CONFIG = [
     ('early_stop_epochs', int, 50, False),
     ('batch_size', int, 32, False),
     ('latent_dimension', int, None, True),
-    ('apc', dict, None, False)
+    ('apc', dict, None, False),
+    ('convpc', dict, None, False)
 ]
 
 APC_CONFIG = [
@@ -41,6 +42,11 @@ APC_CONFIG = [
     ('rnn_units', int, 512, False),
     ('residual', bool, True, False),
     ('learning_rate', float, 0.001, False)
+]
+
+CONVPC_CONFIG = [
+    ("conv_units", int, 128, False),
+    ("learning_rate", float, 0.001, False)
 ]
 
 PREDICTION_CONFIG = [
@@ -120,9 +126,14 @@ def validate_training(config):
     if config['training']['model']['type'] == 'apc':
         if not config['training']['model']['apc']:
             # The model is apc but there were not parameters, we need to create default parameters
-            config['training']['model']['apc']: {}
+            config['training']['model']['apc'] = {}
         # validate parameters for apc model
         validate_fields(config['training']['model']['apc'], APC_CONFIG)
+
+    if config['training']['model']['type'] == 'convpc':
+        if not config['training']['model']['apc']:
+            config['training']['model']['convpc'] = {}
+        validate_fields(config['training']['model']['convpc'], CONVPC_CONFIG)
 
     return config
 
