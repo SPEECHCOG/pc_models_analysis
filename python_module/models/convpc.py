@@ -93,6 +93,8 @@ class ConvPCModel(ModelBase):
         # Model
         self.model = Model([input_feats, input_feats_future], [model_out, autoencoder_prediction])
 
+        # print(self.model.summary())
+
         gpus = tf.config.experimental.list_physical_devices('GPU')
 
         if gpus:
@@ -114,12 +116,16 @@ class ConvPCModel(ModelBase):
                 """
         super(ConvPCModel, self).load_prediction_configuration(config)
 
+        self.use_pca = config['use_pca']
+
     def train(self):
         """
         Training ConvPC will require two losses, one optimising the autoencoder and the second optimising the gru
         prediction.
         :return: a trained model saved on disk
         """
+
+
 
         def mae_latent(y_true, y_pred):
             """
@@ -135,7 +141,7 @@ class ConvPCModel(ModelBase):
 
         # Configuration of learning process
         adam = Adam(lr=self.learning_rate)
-        self.model.compile(optimizer=adam, loss=[mae_latent, 'mean_absolute_error'], loss_weights=[1.0, 1.0])
+        self.model.compile(optimizer=adam, loss=[mae_latent, 'mean_absolute_error'], loss_weights=[1.0, 0.5])
 
         # Model file name for checkpoint and log
         model_file_name = os.path.join(self.full_path_output_folder, self.language +
@@ -157,7 +163,7 @@ class ConvPCModel(ModelBase):
         # Train the model
         # Create dummy prediction so that Keras do not raise an error for wrong dimension
         y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
-        self.model.fit([self.x_train, self.y_train], [y_dummy, self.x_train], epochs=self.epochs,
+        self.model.fit([self.x_train, self.y_train], [y_dummy, self.y_train], epochs=self.epochs,
                        batch_size=self.batch_size, validation_split=0.3,
                        callbacks=[tensorboard, early_stop, checkpoint])
 
@@ -184,8 +190,8 @@ class ConvPCModel(ModelBase):
             # Calculate predictions dimensions (samples, 200, latent-dimension)
             predictions = predictor.predict([x_test, x_test])
 
-        # Apply PCA only for latent layer representations
-        if not self.use_last_layer:
+        # Apply PCA only for latent layer representations and if true in the configuraton file.
+        if not self.use_last_layer and self.use_pca:
             pca = PCA(0.95)  # Keep components that coverage 95% of variance
             pred_orig_shape = predictions.shape
             predictions = predictions.reshape(-1, predictions.shape[-1])
