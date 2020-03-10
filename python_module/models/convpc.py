@@ -43,7 +43,6 @@ class ConvPCModel(ModelBase):
             f.write('epochs: ' + str(self.epochs) + '\n')
             f.write('early stop epochs: ' + str(self.early_stop_epochs) + '\n')
             f.write('batch size: ' + str(self.batch_size) + '\n')
-            f.write('latent dimension: ' + str(self.latent_dimension) + '\n\n')
             f.write('ConvPC configuration: \n')
             for param in self.configuration['model']['convpc']:
                 f.write(param + ': ' + str(self.configuration['model']['convpc'][param]) + '\n')
@@ -75,17 +74,40 @@ class ConvPCModel(ModelBase):
         input_feats_future = Input(shape=self.input_shape, name='input_future_layer')
 
         # Encoding part
-        conv_layer = Conv1D(self.conv_units, kernel_size=3, padding='same', name='conv1d')
-        max_pooling = MaxPooling1D(3, 1, padding='same', name='pool1')
+        units = [self.conv_units, 16, 8, 16, self.conv_units]
+        conv_layers = []
+        maxpool_layers = []
+
+        for i, unit in enumerate(units):
+            conv_layers.append(Conv1D(self.conv_units, kernel_size=3, padding='causal', activation='relu',
+                                      name='conv_'+str(i)))
+            if i == len(units) -1:
+                maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_layer'))
+            else:
+                maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='pool_' + str(i)))
+
         # Use for restricting latent representations
         autoencoder = Conv1D(self.features, kernel_size=1, strides=1, padding='same', name='autoencoder')
+
         # Predictive coding part
-        gru = GRU(self.conv_units, return_sequences=True, name='gru')
+        latent_layers = []
+        maxpool_latent_layers = []
+        gru = Conv1D(self.conv_units, kernel_size=5, padding='causal', activation='relu', name='gru')
 
         # Outputs
-        gru_prediction = gru(max_pooling(conv_layer(input_feats)))
-        latent_future = max_pooling(conv_layer(input_feats_future))
-        autoencoder_prediction = autoencoder(max_pooling(conv_layer(input_feats)))
+        for i in range(len(conv_layers)):
+            if i == 0:
+                # Firt layer should be applied to inputs
+                gru_prediction = maxpool_layers[i](conv_layers[i](input_feats))
+                latent_future = maxpool_layers[i](conv_layers[i](input_feats_future))
+                autoencoder_prediction = maxpool_layers[i](conv_layers[i](input_feats))
+            else:
+                gru_prediction = maxpool_layers[i](conv_layers[i](gru_prediction))
+                latent_future = maxpool_layers[i](conv_layers[i](latent_future))
+                autoencoder_prediction = maxpool_layers[i](conv_layers[i](autoencoder_prediction))
+
+        gru_prediction = gru(gru_prediction)
+        autoencoder_prediction = autoencoder(autoencoder_prediction)
 
         # concatenate gru predictions and latent_future (y_true)
         model_out = Concatenate()([gru_prediction, latent_future])
@@ -117,6 +139,7 @@ class ConvPCModel(ModelBase):
         super(ConvPCModel, self).load_prediction_configuration(config)
 
         self.use_pca = config['use_pca']
+        self.conv_units = config['conv_units']
 
     def train(self):
         """
@@ -124,8 +147,6 @@ class ConvPCModel(ModelBase):
         prediction.
         :return: a trained model saved on disk
         """
-
-
 
         def mae_latent(y_true, y_pred):
             """
@@ -138,10 +159,9 @@ class ConvPCModel(ModelBase):
             mae = mean_absolute_error(y_pred[:, :, :self.conv_units], y_pred[:, :, self.conv_units:])
             return mae
 
-
         # Configuration of learning process
         adam = Adam(lr=self.learning_rate)
-        self.model.compile(optimizer=adam, loss=[mae_latent, 'mean_absolute_error'], loss_weights=[1.0, 0.5])
+        self.model.compile(optimizer=adam, loss=[mae_latent, 'mean_absolute_error'], loss_weights=[0.85, 1])
 
         # Model file name for checkpoint and log
         model_file_name = os.path.join(self.full_path_output_folder, self.language +
@@ -163,7 +183,8 @@ class ConvPCModel(ModelBase):
         # Train the model
         # Create dummy prediction so that Keras do not raise an error for wrong dimension
         y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
-        self.model.fit([self.x_train, self.y_train], [y_dummy, self.y_train], epochs=self.epochs,
+
+        self.model.fit([self.x_train, self.y_train], [y_dummy, self.x_train], epochs=self.epochs,
                        batch_size=self.batch_size, validation_split=0.3,
                        callbacks=[tensorboard, early_stop, checkpoint])
 
@@ -179,19 +200,19 @@ class ConvPCModel(ModelBase):
             # Calculate predictions dimensions (samples, 200, latent-dimension)
             predictions, _ = predictor.predict([x_test, x_test])
             # only fisrt part of the concatenated output
-            predictions = predictions[:, :, self.conv_units]
+            predictions = predictions[:, :, :self.conv_units]
         else:
             # Prediction of model will use latent representation (intermediate layer)
             input_layer = self.model.get_layer('input_layer').output
             input_future_layer = self.model.get_layer('input_future_layer').output
-            latent_layer = self.model.get_layer('pool1').output
+            latent_layer = self.model.get_layer('latent_layer').output
             predictor = Model([input_layer, input_future_layer], latent_layer)
 
             # Calculate predictions dimensions (samples, 200, latent-dimension)
             predictions = predictor.predict([x_test, x_test])
 
-        # Apply PCA only for latent layer representations and if true in the configuraton file.
-        if not self.use_last_layer and self.use_pca:
+        # Apply PCA only if true in the configuration file.
+        if self.use_pca:
             pca = PCA(0.95)  # Keep components that coverage 95% of variance
             pred_orig_shape = predictions.shape
             predictions = predictions.reshape(-1, predictions.shape[-1])

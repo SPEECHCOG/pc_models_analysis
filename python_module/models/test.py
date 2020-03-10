@@ -10,7 +10,7 @@ from tensorflow.keras.optimizers import Adam
 
 from keras import backend as K
 
-
+from read_configuration import read_configuration_json, load_training_features
 
 units = 128
 gru_units = 16
@@ -18,13 +18,13 @@ steps = 5
 window = 3
 learning_rate = 0.001
 
-x_train_all = np.random.rand(1000,200,39)
-x_train_in = x_train_all[:, :-steps, :]
-x_train_future = x_train_all[:, steps:, :]
+config = read_configuration_json('../config.json', True, False)['training']
+# Obtain input/output features to train the model
+x_train, y_train = load_training_features(config['train_in'], config['train_out'])
 
 
-input_shape = x_train_in.shape[1:]
-features = x_train_all.shape[2]
+input_shape = x_train.shape[1:]
+features = x_train.shape[2]
 
 
 
@@ -48,7 +48,7 @@ if gpus:
         print(e)
 
 
-conv_layer = Conv1D(units, kernel_size=3, padding='same', name='conv1d')
+conv_layer = Conv1D(units, kernel_size=3, padding='same', activation='relu', name='conv1d')
 max_pooling = MaxPooling1D(3,1,padding='same', name='pool1')
 
 postnet = Conv1D(features, 1, 1, padding='same', name='convlast')
@@ -84,17 +84,17 @@ def newloss(y_true,y_pred):
 
 
 adam = Adam(lr=learning_rate)
-model.compile(optimizer=adam, loss=[newloss, 'mean_absolute_error'], loss_weights=[1.0,1.0])
+model.compile(optimizer=adam, loss=[newloss, 'mean_absolute_error'], loss_weights=[0.85,1.0])
 
 x_dummy = np.random.rand(1000,1,1)
 
-#log_dir = 'logs/'
-#tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
+log_dir = 'logs/'
+tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
 
 
-model.fit([x_train_in,x_train_future],y=[x_dummy,x_train_in], batch_size=32, epochs=20, verbose=1,
+model.fit([x_train,y_train],y=[x_dummy,x_train], batch_size=32, epochs=200, verbose=1,
           validation_split=0.2,
-          #callbacks=[tensorboard]
+          callbacks=[tensorboard]
           )
 
 #

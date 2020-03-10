@@ -61,7 +61,8 @@ PREDICTION_CONFIG = [
     ('use_last_layer', bool, False, False),
     ('window_shift', float, 0.01, False),
     ('files_limit', int, -1, False),
-    ('use_pca', bool, True, False)
+    ('use_pca', bool, True, False),
+    ('conv_units', int, 128, False)
 ]
 
 LANGUAGES = ['english', 'mandarin', 'french', 'LANG1', 'LANG2']
