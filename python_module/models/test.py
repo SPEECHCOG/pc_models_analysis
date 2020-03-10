@@ -2,7 +2,7 @@ import numpy as np
 from tensorflow import keras
 
 import tensorflow as tf
-from tensorflow.keras.losses import mean_absolute_error
+from tensorflow.keras.losses import mean_absolute_error, mean_squared_error
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from tensorflow.keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D, MaxPooling1D
 from tensorflow.keras.models import Model, load_model
@@ -12,21 +12,19 @@ from keras import backend as K
 
 from read_configuration import read_configuration_json, load_training_features
 
-units = 128
+units = 8
 gru_units = 16
 steps = 5
 window = 3
 learning_rate = 0.001
 
-config = read_configuration_json('../config.json', True, False)['training']
+config = read_configuration_json('../config_test.json', True, False)['training']
 # Obtain input/output features to train the model
 x_train, y_train = load_training_features(config['train_in'], config['train_out'])
 
 
 input_shape = x_train.shape[1:]
 features = x_train.shape[2]
-
-
 
 # Input tensor
 input_feats = Input(shape=input_shape, name='input_layer')
@@ -48,16 +46,16 @@ if gpus:
         print(e)
 
 
-conv_layer = Conv1D(units, kernel_size=3, padding='same', activation='relu', name='conv1d')
+conv_layer = Conv1D(units, kernel_size=3, padding='causal', activation='relu', name='conv1d')
 max_pooling = MaxPooling1D(3,1,padding='same', name='pool1')
 
-postnet = Conv1D(features, 1, 1, padding='same', name='convlast')
+postnet = Conv1D(features, 1, 1, padding='causal', name='convlast')
 
 #gru = GRU(units, return_sequences=True, name='gru')(max_pooling[:, :-steps, :])
-gru = GRU(units, return_sequences=True, name='gru')
+latent_fut = Conv1D(units, kernel_size=5, padding='causal', activation='relu' , name='latent_fut')
 
 future_out = max_pooling(conv_layer(input_feats_future))
-prediction = gru(max_pooling(conv_layer(input_feats)))
+prediction = latent_fut(max_pooling(conv_layer(input_feats)))
 short_prediction = postnet(max_pooling(conv_layer(input_feats)))
 
 
@@ -73,81 +71,27 @@ print(model.summary())
 half = units
 
 def newloss(y_true,y_pred):
-    print(y_pred)
-    print(y_pred[:,:,0:half])
-    print(y_pred[:,:,half:2*half])
-    mae = mean_absolute_error(y_pred[:,:,0:half],y_pred[:,:,half:2*half])
-    #mae = K.mean(K.square((y_pred[:, :, 0:half] - y_pred[:, :, half:2 * half])))
+    #mae = mean_squared_error(y_pred[:,:,0:half],y_pred[:,:,half:])
+    #mae = K.mean(K.square((y_pred[:, :, 0:half] - y_pred[:, :, half:])))
+    print_op = tf.print("y_true: ", y_pred[:, :, half:])
+    print_op1 = tf.print("y_pred", y_pred[:, :, 0:half])
+    with tf.control_dependencies([print_op, print_op1]):
+        mae = K.mean(K.abs((y_pred[:, :, 0:half] - y_pred[:, :, half:])))
     return mae
 
-
-
-
 adam = Adam(lr=learning_rate)
-model.compile(optimizer=adam, loss=[newloss, 'mean_absolute_error'], loss_weights=[0.85,1.0])
+model.compile(optimizer=adam, loss=[newloss, 'mean_absolute_error'], loss_weights=[0.9, 0.6])
 
-x_dummy = np.random.rand(1000,1,1)
+#y_dummy = np.random.rand(x_train.shape[0],200,units*2)
+y_dummy = np.random.rand(x_train.shape[0], 1, 1)
 
 log_dir = 'logs/'
 tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
 
 
-model.fit([x_train,y_train],y=[x_dummy,x_train], batch_size=32, epochs=200, verbose=1,
+model.fit(x=[x_train,y_train],y=[y_dummy, x_train], batch_size=32, epochs=200, verbose=1,
           validation_split=0.2,
           callbacks=[tensorboard]
           )
 
-#
-# def predictive_loss(input):
-#     def loss(y_true, y_pred):
-#         y_true = predictive_m.predict(input, steps=32)
-#         print(y_true)
-#         print(y_pred)
-#         y_true = y_true[:, steps:, :]
-#         return mean_absolute_error(y_true, y_pred)
-#     return loss
-
-
-#
-# adam = Adam(lr=learning_rate)
-# model.compile(optimizer=adam, loss=predictive_loss(input_feats))
-#
-# model.fit(x_train, x_train, batch_size=32, epochs=100, verbose=1, validation_split=0.2)
-
 print(model.summary())
-
-
-"""
-for epoch in range(10):
-    print('......................... epoch .............................' + str(epoch) )
-    for i in range(5):
-        print('......................... chunk .............................' + str(i+1))
-        data_orderX,data_orderY = randOrder(n_train)
-        Y_train = []
-        X_train = []
-        infile = open('/worktmp/khorrami/work/projects/project_4/outputs/step_4/tripletData/trainX' + str(5),'rb')
-        X_train_temp = pickle.load(infile)
-        infile.close()
-        Y_train = Y_data[i][data_orderY]
-        X_train = X_train_temp[data_orderX]
-        history = model.fit([Y_train, X_train], bin_target_epoch, shuffle=False, epochs=1,batch_size=120,  
-                            validation_data=([Y_val_triplet,X_val_triplet],binary_target_val))
-        Y_train = []
-        X_train = []
-        val_epoch = history.history['val_loss'][0]
-        train_epoch = history.history['loss'][0]
-        allepochs_valloss.append(val_epoch)
-        allepochs_trainloss.append(train_epoch)
-        if val_epoch <= val_indicator:
-            val_indicator = val_epoch
-            weights = model.get_weights()
-            model.set_weights(weights)
-            model.save_weights('%s/v0_model_weights.h5' % modeldir)
-            weights = []
-            history = []
-    print ('................................................................   Final val_loss after this epoch =    ' + 
-            str(val_indicator))
-    scipy.io.savemat('/worktmp/khorrami/work/projects/project_4/outputs/step_4/model/triplets/valtrainloss.mat',
-                 {'allepochs_valloss':allepochs_valloss,'allepochs_trainloss':allepochs_trainloss})
-# .............................................................................
-"""

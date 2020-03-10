@@ -62,7 +62,7 @@ PREDICTION_CONFIG = [
     ('window_shift', float, 0.01, False),
     ('files_limit', int, -1, False),
     ('use_pca', bool, True, False),
-    ('conv_units', int, 128, False)
+    ('convpc', dict, None, False)
 ]
 
 LANGUAGES = ['english', 'mandarin', 'french', 'LANG1', 'LANG2']
@@ -176,6 +176,13 @@ def validate_prediction(config):
     for path in [config['prediction']['model_path']] + test_paths:
         if not os.path.exists(path):
             raise Exception('The file does not exist: %s' % path)
+
+    # Validate ConvPC params
+    if config['prediction']['model_type'] == 'convpc':
+        if not config['prediction']['convpc']:
+            config['prediction']['convpc'] = {}
+        validate_fields(config['prediction']['convpc'], CONVPC_CONFIG)
+
 
     return config
 

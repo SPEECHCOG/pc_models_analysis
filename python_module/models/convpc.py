@@ -79,7 +79,7 @@ class ConvPCModel(ModelBase):
         maxpool_layers = []
 
         for i, unit in enumerate(units):
-            conv_layers.append(Conv1D(self.conv_units, kernel_size=3, padding='causal', activation='relu',
+            conv_layers.append(Conv1D(units[i], kernel_size=3, padding='causal', activation='relu',
                                       name='conv_'+str(i)))
             if i == len(units) -1:
                 maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_layer'))
@@ -139,7 +139,7 @@ class ConvPCModel(ModelBase):
         super(ConvPCModel, self).load_prediction_configuration(config)
 
         self.use_pca = config['use_pca']
-        self.conv_units = config['conv_units']
+        self.conv_units = config['convpc']['conv_units']
 
     def train(self):
         """
@@ -181,7 +181,7 @@ class ConvPCModel(ModelBase):
         tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
 
         # Train the model
-        # Create dummy prediction so that Keras do not raise an error for wrong dimension
+        # Create dummy prediction so that Keras does not raise an error for wrong dimension
         y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
 
         self.model.fit([self.x_train, self.y_train], [y_dummy, self.x_train], epochs=self.epochs,
@@ -196,10 +196,9 @@ class ConvPCModel(ModelBase):
 
         if self.use_last_layer:
             predictor = self.model
-
             # Calculate predictions dimensions (samples, 200, latent-dimension)
             predictions, _ = predictor.predict([x_test, x_test])
-            # only fisrt part of the concatenated output
+            # only first part of the concatenated output
             predictions = predictions[:, :, :self.conv_units]
         else:
             # Prediction of model will use latent representation (intermediate layer)
@@ -213,7 +212,7 @@ class ConvPCModel(ModelBase):
 
         # Apply PCA only if true in the configuration file.
         if self.use_pca:
-            pca = PCA(0.95)  # Keep components that coverage 95% of variance
+            pca = PCA(0.95)  #  Keep components that coverage 95% of variance
             pred_orig_shape = predictions.shape
             predictions = predictions.reshape(-1, predictions.shape[-1])
             predictions = pca.fit_transform(predictions)
