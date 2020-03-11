@@ -36,7 +36,7 @@ class Autoencoder(ModelBase):
 
         # Stacked encoder
         encoded_1 = Dense(128, activation='relu', name='encoded_1')(input_feats)
-        encoded_2 = Dense(65, activation='relu', name='encoded_2')(encoded_1)
+        encoded_2 = Dense(64, activation='relu', name='encoded_2')(encoded_1)
         encoded_3 = Dense(self.latent_dimension, activation='relu', name='latent_layer')(encoded_2)
 
         # Stacked decoder
