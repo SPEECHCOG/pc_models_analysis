@@ -9,20 +9,18 @@
 import os
 from datetime import datetime
 
-import tensorflow as tf
 import numpy as np
-
-
+import tensorflow as tf
+from keras import backend as K
 from sklearn.decomposition import PCA
-from tensorflow.keras.losses import mean_absolute_error
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import Input, GRU, Conv1D, MaxPooling1D, Concatenate
+from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Concatenate, Lambda
+from tensorflow.keras.losses import mean_absolute_error
 from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.optimizers import Adam
 
 from models.create_prediction_files import create_prediction_files
 from models.model_base import ModelBase
-
 
 
 class ConvPCModel(ModelBase):
@@ -80,8 +78,8 @@ class ConvPCModel(ModelBase):
 
         for i, unit in enumerate(units):
             conv_layers.append(Conv1D(units[i], kernel_size=3, padding='causal', activation='relu',
-                                      name='conv_'+str(i)))
-            if i == len(units) -1:
+                                      name='conv_' + str(i)))
+            if i == len(units) - 1:
                 maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_layer'))
             else:
                 maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='pool_' + str(i)))
@@ -92,28 +90,44 @@ class ConvPCModel(ModelBase):
         # Predictive coding part
         latent_layers = []
         maxpool_latent_layers = []
-        gru = Conv1D(self.conv_units, kernel_size=5, padding='causal', activation='relu', name='gru')
+        future_layer = Conv1D(self.conv_units, kernel_size=5, padding='causal', activation='relu', name='gru')
 
         # Outputs
         for i in range(len(conv_layers)):
             if i == 0:
                 # Firt layer should be applied to inputs
-                gru_prediction = maxpool_layers[i](conv_layers[i](input_feats))
+                future_prediction = maxpool_layers[i](conv_layers[i](input_feats))
                 latent_future = maxpool_layers[i](conv_layers[i](input_feats_future))
                 autoencoder_prediction = maxpool_layers[i](conv_layers[i](input_feats))
             else:
-                gru_prediction = maxpool_layers[i](conv_layers[i](gru_prediction))
+                future_prediction = maxpool_layers[i](conv_layers[i](future_prediction))
                 latent_future = maxpool_layers[i](conv_layers[i](latent_future))
                 autoencoder_prediction = maxpool_layers[i](conv_layers[i](autoencoder_prediction))
 
-        gru_prediction = gru(gru_prediction)
+        future_prediction = future_layer(future_prediction)
         autoencoder_prediction = autoencoder(autoencoder_prediction)
 
         # concatenate gru predictions and latent_future (y_true)
-        model_out = Concatenate()([gru_prediction, latent_future])
+        model_out = Concatenate()([future_prediction, latent_future])
+
+        def final_loss_func(args):
+            """
+            It calculates the absolute difference between the autoencoder MAE and future representations MAE.
+            :param args: list containing the y_true for autoencoder, y_pred for autoencoder, y_true of latent
+                         representations and y_pred of latent representations
+            :return: tensor with the absolute value of the difference
+            """
+            auto_true, auto_pred, latent_true, latent_pred = args
+            auto_mae = K.mean(K.abs((auto_pred - auto_true)), keepdims=True)
+            latent_mae = K.mean(K.abs(latent_pred - latent_true), keepdims=True)
+            return K.abs(auto_mae - latent_mae)
+
+        # Minimisation of difference between MAE of autoencoder and MAE of future latent representations
+        final_loss = Lambda(final_loss_func, output_shape=(1,), name='final_loss')([input_feats, autoencoder_prediction,
+                                                                                    latent_future, future_prediction])
 
         # Model
-        self.model = Model([input_feats, input_feats_future], [model_out, autoencoder_prediction])
+        self.model = Model([input_feats, input_feats_future], [final_loss, model_out, autoencoder_prediction])
 
         # print(self.model.summary())
 
@@ -121,11 +135,8 @@ class ConvPCModel(ModelBase):
 
         if gpus:
             try:
-                # Currently, memory growth needs to be the same across GPUs
                 for gpu in gpus:
                     tf.config.experimental.set_memory_growth(gpu, True)
-                logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-                print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
             except RuntimeError as e:
                 # Memory growth must be set before GPUs have been initialized
                 print(e)
@@ -161,7 +172,8 @@ class ConvPCModel(ModelBase):
 
         # Configuration of learning process
         adam = Adam(lr=self.learning_rate)
-        self.model.compile(optimizer=adam, loss=[mae_latent, 'mean_absolute_error'], loss_weights=[0.85, 1])
+        self.model.compile(optimizer=adam, loss=[lambda y_true, y_pred: y_pred, mae_latent,
+                                                 'mean_absolute_error'], loss_weights=[0.5, 0.1, 0.4])
 
         # Model file name for checkpoint and log
         model_file_name = os.path.join(self.full_path_output_folder, self.language +
@@ -184,7 +196,7 @@ class ConvPCModel(ModelBase):
         # Create dummy prediction so that Keras does not raise an error for wrong dimension
         y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
 
-        self.model.fit([self.x_train, self.y_train], [y_dummy, self.x_train], epochs=self.epochs,
+        self.model.fit([self.x_train, self.y_train], [y_dummy, y_dummy, self.x_train], epochs=self.epochs,
                        batch_size=self.batch_size, validation_split=0.3,
                        callbacks=[tensorboard, early_stop, checkpoint])
 
@@ -197,7 +209,7 @@ class ConvPCModel(ModelBase):
         if self.use_last_layer:
             predictor = self.model
             # Calculate predictions dimensions (samples, 200, latent-dimension)
-            predictions, _ = predictor.predict([x_test, x_test])
+            _, predictions, _ = predictor.predict([x_test, x_test])
             # only first part of the concatenated output
             predictions = predictions[:, :, :self.conv_units]
         else:
@@ -212,7 +224,7 @@ class ConvPCModel(ModelBase):
 
         # Apply PCA only if true in the configuration file.
         if self.use_pca:
-            pca = PCA(0.95)  #  Keep components that coverage 95% of variance
+            pca = PCA(0.95)  # Keep components that coverage 95% of variance
             pred_orig_shape = predictions.shape
             predictions = predictions.reshape(-1, predictions.shape[-1])
             predictions = pca.fit_transform(predictions)

@@ -13,9 +13,11 @@ from keras import backend as K
 from read_configuration import read_configuration_json, load_training_features
 
 units = 8
-gru_units = 16
-steps = 5
-window = 3
+layers = 5
+
+hidden = [16,8,16]
+
+
 learning_rate = 0.001
 
 config = read_configuration_json('../config_test.json', True, False)['training']
@@ -49,20 +51,59 @@ if gpus:
         print(e)
 
 
-conv_layer = Conv1D(units, kernel_size=3, padding='causal', activation='relu', name='conv1d')
-max_pooling = MaxPooling1D(3,1,padding='same', name='pool1')
+conv_layers = []
+maxpool_layers = []
 
-postnet = Conv1D(features, 1, 1, padding='causal', name='convlast')
+for i in range(len(hidden)):
+    conv_layers.append(Conv1D(hidden[i], kernel_size=3, padding='same', activation='relu',
+                              name='conv_' + str(i)))
+    if i ==  2:
+        maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_layer'))
+    else:
+        maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='pool_' + str(i)))
 
-#gru = GRU(units, return_sequences=True, name='gru')(max_pooling[:, :-steps, :])
-latent_fut = Conv1D(units, kernel_size=5, padding='causal', activation='relu' , name='latent_fut')
+# Use for restricting latent representations
+autoencoder = Conv1D(features, kernel_size=1, strides=1, padding='same', name='autoencoder')
 
-future_out = max_pooling(conv_layer(input_feats_future))
-prediction = latent_fut(max_pooling(conv_layer(input_feats)))
-short_prediction = postnet(max_pooling(conv_layer(input_feats)))
+# Predictive coding part
+latent_layers = []
+maxpool_latent_layers = []
+
+for i in range(len(hidden)):
+    latent_layers.append(Conv1D(hidden[i], kernel_size=1, padding='same', activation='relu', name='gru_'+str(i)))
+    maxpool_latent_layers.append(MaxPooling1D(3,1,padding='same', name='latent_pool_'+str(i)))
+
+future_layer = Conv1D(units, kernel_size=1, padding='same', activation='relu', name='gru')
+
+# Outputs
+for i in range(len(conv_layers)):
+    if i == 0:
+        # Firt layer should be applied to inputs
+        future_prediction = maxpool_layers[i](conv_layers[i](input_feats))
+        future_out = maxpool_layers[i](conv_layers[i](input_feats_future))
+        autoencoder_prediction = maxpool_layers[i](conv_layers[i](input_feats))
+    else:
+        future_prediction = maxpool_layers[i](conv_layers[i](future_prediction))
+        future_out = maxpool_layers[i](conv_layers[i](future_out))
+        autoencoder_prediction = maxpool_layers[i](conv_layers[i](autoencoder_prediction))
+
+for i in range(len(latent_layers)):
+    future_prediction = maxpool_latent_layers[i](latent_layers[i](future_prediction))
+
+prediction = future_prediction
+short_prediction = autoencoder(autoencoder_prediction)
+
+# conv_layer = Conv1D(units, kernel_size=3, padding='causal', activation='relu', name='conv1d')
+# max_pooling = MaxPooling1D(3,1,padding='same', name='pool1')
+#
+# postnet = Conv1D(features, 1, 1, padding='causal', name='autoencoder')
+#
+# #gru = GRU(units, return_sequences=True, name='gru')(max_pooling[:, :-steps, :])
+# latent_fut = Conv1D(units, kernel_size=5, padding='causal', activation='relu' , name='latent_fut')
 
 
-model_out = keras.layers.Concatenate()([prediction, future_out])
+
+model_out = keras.layers.Concatenate(name='future_latent')([prediction, future_out])
 
 
 def final_loss(args):
@@ -89,7 +130,7 @@ print(model.summary())
 #model = Model(input_feats, gru)
 #predictive_m = Model(input_feats, max_pooling)
 
-half = units
+half = hidden[-1]
 
 def newloss2(y_true, y_pred):
     print_op = tf.print("autoencoder: y_true: ", y_true)
@@ -108,8 +149,8 @@ def newloss(y_true,y_pred):
     return mae
 
 adam = Adam(lr=learning_rate)
-model.compile(optimizer=adam, loss={'final_loss':lambda y_true, y_pred: y_pred, 'convlast': 'mean_absolute_error',
-                                    'concatenate': newloss}, loss_weights=[0.5, 0.4, 0.1])
+model.compile(optimizer=adam, loss={'final_loss':lambda y_true, y_pred: y_pred, 'autoencoder': 'mean_absolute_error',
+                                    'future_latent': newloss}, loss_weights=[0.15, 0.7, 0.15])
 
 
 #y_dummy = np.random.rand(x_train.shape[0],200,units*2)
@@ -124,9 +165,18 @@ model.fit(x=[x_train,y_train],y=[y_dummy, x_train, y_dummy], batch_size=32, epoc
           callbacks=[tensorboard]
           )
 
-predictor = Model([input_feats, input_feats_future], postnet(max_pooling(conv_layer(input_feats))))
+for i in range(len(hidden)):
+    if i ==0:
+        out = maxpool_layers[i](conv_layers[i](input_feats))
+    else:
+        out = maxpool_layers[i](conv_layers[i](out))
 
-out = predictor.predict([x_train, y_train])
+out = autoencoder(out)
 
-print(K.mean(K.abs((out - x_train))))
+
+predictor = Model([input_feats, input_feats_future], out)
+
+out_pred = predictor.predict([y_train, y_train])
+
+print(K.mean(K.abs((out_pred - y_train))))
 print(model.summary())
