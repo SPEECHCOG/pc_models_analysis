@@ -77,7 +77,7 @@ class ConvPCModel(ModelBase):
         maxpool_layers = []
 
         for i, unit in enumerate(units):
-            conv_layers.append(Conv1D(units[i], kernel_size=3, padding='causal', activation='relu',
+            conv_layers.append(Conv1D(units[i], kernel_size=3, padding='same', activation='relu',
                                       name='conv_' + str(i)))
             if i == len(units) - 1:
                 maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_layer'))
@@ -90,7 +90,11 @@ class ConvPCModel(ModelBase):
         # Predictive coding part
         latent_layers = []
         maxpool_latent_layers = []
-        future_layer = Conv1D(self.conv_units, kernel_size=5, padding='causal', activation='relu', name='gru')
+
+        for i in range(len(units)):
+            latent_layers.append(Conv1D(units[i], kernel_size=3, padding='same', activation='relu',
+                                        name='conv_fut_' + str(i)))
+            maxpool_latent_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_pool_' + str(i)))
 
         # Outputs
         for i in range(len(conv_layers)):
@@ -104,7 +108,9 @@ class ConvPCModel(ModelBase):
                 latent_future = maxpool_layers[i](conv_layers[i](latent_future))
                 autoencoder_prediction = maxpool_layers[i](conv_layers[i](autoencoder_prediction))
 
-        future_prediction = future_layer(future_prediction)
+        for i in range(len(latent_layers)):
+            future_prediction = maxpool_latent_layers[i](latent_layers[i](future_prediction))
+
         autoencoder_prediction = autoencoder(autoencoder_prediction)
 
         # concatenate gru predictions and latent_future (y_true)
@@ -131,16 +137,6 @@ class ConvPCModel(ModelBase):
 
         # print(self.model.summary())
 
-        gpus = tf.config.experimental.list_physical_devices('GPU')
-
-        if gpus:
-            try:
-                for gpu in gpus:
-                    tf.config.experimental.set_memory_growth(gpu, True)
-            except RuntimeError as e:
-                # Memory growth must be set before GPUs have been initialized
-                print(e)
-
     def load_prediction_configuration(self, config):
         """
                 It uses implementation from ModelBase
@@ -159,6 +155,9 @@ class ConvPCModel(ModelBase):
         :return: a trained model saved on disk
         """
 
+        physical_devices = tf.config.list_physical_devices('GPU')
+        tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
+
         def mae_latent(y_true, y_pred):
             """
             Calcuate mean absolute error for GRU predictions in the latent space
@@ -167,7 +166,8 @@ class ConvPCModel(ModelBase):
                            predictions
             :return: mean absolute error
             """
-            mae = mean_absolute_error(y_pred[:, :, :self.conv_units], y_pred[:, :, self.conv_units:])
+            # mae = mean_absolute_error(y_pred[:, :, :self.conv_units], y_pred[:, :, self.conv_units:])
+            mae = K.mean(K.abs((y_pred[:, :, 0:self.conv_units] - y_pred[:, :, self.conv_units:])))
             return mae
 
         # Configuration of learning process
@@ -196,7 +196,11 @@ class ConvPCModel(ModelBase):
         # Create dummy prediction so that Keras does not raise an error for wrong dimension
         y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
 
-        self.model.fit([self.x_train, self.y_train], [y_dummy, y_dummy, self.x_train], epochs=self.epochs,
+        # Use + N frames in future to train future latent representations.
+        y_future = self.y_train.reshape(self.y_train.shape[0]*self.y_train.shape[1], self.y_train.shape[-1])
+        y_future = np.roll(y_future, -10, axis=0).reshape(self.y_train.shape)
+
+        self.model.fit([self.x_train, y_future], [y_dummy, y_dummy, self.x_train], epochs=self.epochs,
                        batch_size=self.batch_size, validation_split=0.3,
                        callbacks=[tensorboard, early_stop, checkpoint])
 

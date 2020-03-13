@@ -33,15 +33,15 @@ def train(config_path):
         model = Autoencoder()
         model.load_training_configuration(config, x_train, y_train)
         model.train()
-    if model_type == 'apc':
+    elif model_type == 'apc':
         model = APCModel()
         model.load_training_configuration(config, x_train, y_train)
         model.train()
-    if model_type == 'convpc':
+    elif model_type == 'convpc':
         model = ConvPCModel()
         model.load_training_configuration(config, x_train, y_train)
         model.train()
-    if model_type == 'convpc2':
+    elif model_type == 'convpc2':
         model = ConvPC2Model()
         model.load_training_configuration(config, x_train, y_train)
         model.train()

@@ -15,7 +15,7 @@ from read_configuration import read_configuration_json, load_training_features
 units = 8
 layers = 5
 
-hidden = [128,64,32,8,32,64,128]
+hidden = [32,16,8,16,32]
 
 
 learning_rate = 0.001
@@ -23,6 +23,9 @@ learning_rate = 0.001
 config = read_configuration_json('../config_test.json', True, False)['training']
 # Obtain input/output features to train the model
 x_train, y_train = load_training_features(config['train_in'], config['train_out'])
+
+y_train_10 = np.roll(y_train.reshape(y_train.shape[0]*y_train.shape[1], y_train.shape[-1]),
+                     -10, axis=0).reshape(y_train.shape)
 
 # x_train = x_train[:2, :, :]
 # y_train = y_train[:2, :, :]
@@ -70,10 +73,10 @@ latent_layers = []
 maxpool_latent_layers = []
 
 for i in range(len(hidden)):
-    latent_layers.append(Conv1D(hidden[i], kernel_size=1, padding='same', activation='relu', name='gru_'+str(i)))
+    latent_layers.append(Conv1D(hidden[i], kernel_size=3, padding='same', activation='relu', name='gru_'+str(i)))
     maxpool_latent_layers.append(MaxPooling1D(3,1,padding='same', name='latent_pool_'+str(i)))
 
-future_layer = Conv1D(hidden[-1], kernel_size=1, padding='same', activation='relu', name='gru')
+future_layer = Conv1D(hidden[-1], kernel_size=5, padding='same', activation='relu', name='gru')
 
 # Outputs
 for i in range(len(conv_layers)):
@@ -87,12 +90,12 @@ for i in range(len(conv_layers)):
         future_out = maxpool_layers[i](conv_layers[i](future_out))
         autoencoder_prediction = maxpool_layers[i](conv_layers[i](autoencoder_prediction))
 
-# for i in range(len(latent_layers)):
-#     future_prediction = maxpool_latent_layers[i](latent_layers[i](future_prediction))
+for i in range(len(latent_layers)):
+    future_prediction = maxpool_latent_layers[i](latent_layers[i](future_prediction))
 
 
 
-# prediction = future_layer(future_prediction)
+prediction = future_prediction
 short_prediction = autoencoder(autoencoder_prediction)
 
 # conv_layer = Conv1D(units, kernel_size=3, padding='causal', activation='relu', name='conv1d')
@@ -105,7 +108,7 @@ short_prediction = autoencoder(autoencoder_prediction)
 
 
 
-# model_out = keras.layers.Concatenate(name='future_latent')([prediction, future_out])
+model_out = keras.layers.Concatenate(name='future_latent')([prediction, future_out])
 
 
 def final_loss(args):
@@ -121,11 +124,11 @@ def final_loss(args):
         return K.abs(auto_mae - latent_mae)
 
 
-# loss_out = Lambda(final_loss, output_shape=(1,), name='final_loss')([input_feats, short_prediction,
-#                                                                      future_out, prediction])
+loss_out = Lambda(final_loss, output_shape=(1,), name='final_loss')([input_feats, short_prediction,
+                                                                      future_out, prediction])
 
 
-model = Model(inputs=[input_feats,input_feats_future], outputs=short_prediction)
+model = Model(inputs=[input_feats,input_feats_future], outputs=[loss_out, short_prediction, model_out])
 
 print(model.summary())
 
@@ -151,9 +154,9 @@ def newloss(y_true,y_pred):
     return mae
 
 adam = Adam(lr=learning_rate)
-# {'final_loss':lambda y_true, y_pred: y_pred, 'autoencoder': 'mean_absolute_error',
-#                                     'future_latent': newloss}
-model.compile(optimizer=adam, loss='mean_absolute_error')
+
+model.compile(optimizer=adam, loss={'final_loss':lambda y_true, y_pred: y_pred, 'autoencoder': 'mean_absolute_error',
+                                    'future_latent': newloss}, loss_weights=[0.5, 0.4, 0.1])
 
 
 #y_dummy = np.random.rand(x_train.shape[0],200,units*2)
@@ -163,8 +166,8 @@ log_dir = 'logs/'
 tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
 
 
-model.fit(x=[x_train,y_train],y=x_train, batch_size=32, epochs=1000, verbose=1,
-          validation_split=0.2,
+model.fit(x=[x_train,y_train_10],y=[y_dummy, x_train, y_dummy], batch_size=32, epochs=200, verbose=1,
+          validation_split=0.3,
           callbacks=[tensorboard]
           )
 """
@@ -180,7 +183,7 @@ out = autoencoder(out)
 predictor = Model([input_feats, input_feats_future], out)
 """
 
-out_pred = model.predict([y_train, y_train])
+_, out_pred, _ = model.predict([x_train, y_train])
 
-print(K.mean(K.abs((out_pred - y_train))))
+print(K.mean(K.abs((out_pred - x_train))))
 print(model.summary())
