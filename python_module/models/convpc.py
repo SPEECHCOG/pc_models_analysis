@@ -76,7 +76,7 @@ class ConvPCModel(ModelBase):
         conv_layers = []
         maxpool_layers = []
 
-        for i, unit in enumerate(units):
+        for i in range(len(units)):
             conv_layers.append(Conv1D(units[i], kernel_size=3, padding='same', activation='relu',
                                       name='conv_' + str(i)))
             if i == len(units) - 1:
@@ -135,7 +135,7 @@ class ConvPCModel(ModelBase):
         # Model
         self.model = Model([input_feats, input_feats_future], [final_loss, model_out, autoencoder_prediction])
 
-        # print(self.model.summary())
+        print(self.model.summary())
 
     def load_prediction_configuration(self, config):
         """
@@ -172,8 +172,8 @@ class ConvPCModel(ModelBase):
 
         # Configuration of learning process
         adam = Adam(lr=self.learning_rate)
-        self.model.compile(optimizer=adam, loss=[lambda y_true, y_pred: y_pred, mae_latent,
-                                                 'mean_absolute_error'], loss_weights=[0.5, 0.1, 0.4])
+        self.model.compile(optimizer=adam, loss={'final_loss': lambda y_true, y_pred: y_pred, 'concatenate': mae_latent,
+                                                 'autoencoder': 'mean_absolute_error'}, loss_weights=[0.2, 0.4, 0.4])
 
         # Model file name for checkpoint and log
         model_file_name = os.path.join(self.full_path_output_folder, self.language +
@@ -196,11 +196,11 @@ class ConvPCModel(ModelBase):
         # Create dummy prediction so that Keras does not raise an error for wrong dimension
         y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
 
-        # Use + N frames in future to train future latent representations.
-        y_future = self.y_train.reshape(self.y_train.shape[0]*self.y_train.shape[1], self.y_train.shape[-1])
-        y_future = np.roll(y_future, -10, axis=0).reshape(self.y_train.shape)
+        # Use + N (10) frames in future to train future latent representations.
+        y_future = np.roll(self.y_train.reshape(self.y_train.shape[0]*self.y_train.shape[1], self.y_train.shape[-1]),
+                           -15, axis=0).reshape(self.y_train.shape)
 
-        self.model.fit([self.x_train, y_future], [y_dummy, y_dummy, self.x_train], epochs=self.epochs,
+        self.model.fit(x=[self.x_train, self.y_train], y=[y_dummy, y_dummy, self.x_train], epochs=self.epochs,
                        batch_size=self.batch_size, validation_split=0.3,
                        callbacks=[tensorboard, early_stop, checkpoint])
 
