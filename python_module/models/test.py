@@ -19,6 +19,7 @@ from read_configuration import read_configuration_json, load_training_features, 
 
 hidden = [32,16,8,16,32]
 learning_rate = 0.001
+steps = 5
 
 config = read_configuration_json('../config_test.json', True, False)['training']
 # Obtain input/output features to train the model
@@ -89,10 +90,46 @@ def final_loss_func(args):
     return K.abs(auto_mae - latent_mae)
 
 
-final_loss = Lambda(final_loss_func, output_shape=(1,), name='final_loss')([input_feats, autoencoder_prediction,
-                                                                      latent_future, future_prediction])
+def contrastive_loss_func(args):
+    latent_true, latent_pred = args
+    true_futures = latent_true[0, :, :]
+    predictions = []
+    # True predictions:
+    predictions.append(latent_pred[0, :, :])
 
-model = Model(inputs=[input_feats,input_feats_future], outputs=[final_loss, model_out, autoencoder_prediction])
+    for i in range(steps - 1):
+        predictions.append(latent_true[i+1, :, :])
+
+    dist_correct = K.clip(K.exp(K.sum((predictions[0] * true_futures), axis=-1)), 1e-6, 1e6)
+    dist_false = []
+
+    for i in range(steps - 1):
+        dist_false.append(K.clip(K.exp(K.sum((predictions[0] * predictions[i+1]), axis=-1)), 1e-6, 1e6))
+
+    # for i in range(steps - 1):
+    #     if i == 0:
+    #         total_dist_false = predictions[i+1]
+    #     else:
+    #         total_dist_false += predictions[i+1]
+
+    total_dist_false = tf.add_n(dist_false)
+
+    print_op = tf.print("dist_correct: ", dist_correct)
+    print_op1 = tf.print("total_dist_false: ", total_dist_false)
+
+    # The idea is to minimise the difference between both losses as well as each loss. And to restrict constant values
+    # by using the weights for losses. In my experiments that has help at least to have better latent representations
+    with tf.control_dependencies([print_op, print_op1]):
+        loss = -K.mean(K.log(dist_correct) - K.log(total_dist_false), keepdims=True)
+        return loss
+
+#final_loss = Lambda(final_loss_func, output_shape=(1,), name='final_loss')([input_feats, autoencoder_prediction,
+#                                                                      latent_future, future_prediction])
+
+
+final_loss = Lambda(contrastive_loss_func, output_shape=(1,), name='final_loss')([latent_future, future_prediction])
+
+model = Model(inputs=[input_feats,input_feats_future], outputs=[final_loss, autoencoder_prediction])
 
 print(model.summary())
 
@@ -105,20 +142,19 @@ def mae_latent(y_true,y_pred):
 
 adam = Adam(lr=learning_rate)
 
-model.compile(optimizer=adam, loss={'final_loss': lambda y_true, y_pred: y_pred, 'autoencoder': 'mean_absolute_error',
-                                    'concatenate': mae_latent}, loss_weights=[0.2, 0.4, 0.4])
+model.compile(optimizer=adam, loss={'final_loss': lambda y_true, y_pred: y_pred, 'autoencoder': 'mean_absolute_error'})
 
 
 #y_dummy = np.random.rand(x_train.shape[0],200,units*2)
 y_dummy = np.random.rand(x_train.shape[0], 1, 1)
 
-log_dir = 'logs/' + 'y_train_10_p'
+log_dir = 'logs/' + 'steps_' + str(steps)
 tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
 
 y_train_10 = np.roll(y_train.reshape(y_train.shape[0]*y_train.shape[1], y_train.shape[-1]),
                      -10, axis=0).reshape(y_train.shape)
 
-model.fit(x=[x_train,y_train_10], y=[y_dummy, y_dummy, y_train], batch_size=32, epochs=200, verbose=1,
+model.fit(x=[x_train,y_train], y=[y_dummy, x_train], batch_size=32, epochs=200, verbose=1,
           validation_split=0.3,
           callbacks=[tensorboard]
           )
