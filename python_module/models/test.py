@@ -106,22 +106,11 @@ def contrastive_loss_func(args):
     for i in range(steps - 1):
         dist_false.append(K.clip(K.exp(K.sum((predictions[0] * predictions[i+1]), axis=-1)), 1e-6, 1e6))
 
-    # for i in range(steps - 1):
-    #     if i == 0:
-    #         total_dist_false = predictions[i+1]
-    #     else:
-    #         total_dist_false += predictions[i+1]
-
+    dist_false.append(dist_correct)
     total_dist_false = tf.add_n(dist_false)
 
-    print_op = tf.print("dist_correct: ", dist_correct)
-    print_op1 = tf.print("total_dist_false: ", total_dist_false)
-
-    # The idea is to minimise the difference between both losses as well as each loss. And to restrict constant values
-    # by using the weights for losses. In my experiments that has help at least to have better latent representations
-    with tf.control_dependencies([print_op, print_op1]):
-        loss = -K.mean(K.log(dist_correct) - K.log(total_dist_false), keepdims=True)
-        return loss
+    loss = -K.mean(K.log(dist_correct) - K.log(total_dist_false), keepdims=True)
+    return loss
 
 #final_loss = Lambda(final_loss_func, output_shape=(1,), name='final_loss')([input_feats, autoencoder_prediction,
 #                                                                      latent_future, future_prediction])
@@ -158,6 +147,10 @@ model.fit(x=[x_train,y_train], y=[y_dummy, x_train], batch_size=32, epochs=200, 
           validation_split=0.3,
           callbacks=[tensorboard]
           )
+
+_, auto_out = model.predict([x_train, x_train])
+
+
 
 # model.save('convpc_future_decoding.h5')
 #

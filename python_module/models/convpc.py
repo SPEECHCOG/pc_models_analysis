@@ -94,6 +94,8 @@ class ConvPCModel(ModelBase):
         for i in range(len(units)):
             latent_layers.append(Conv1D(units[i], kernel_size=3, padding='same', activation='relu',
                                         name='conv_fut_' + str(i)))
+            if i == len(units) -1:
+                maxpool_latent_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_future'))
             maxpool_latent_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_pool_' + str(i)))
 
         # Outputs
@@ -128,12 +130,43 @@ class ConvPCModel(ModelBase):
             latent_mae = K.mean(K.abs(latent_pred - latent_true), keepdims=True)
             return K.abs(auto_mae - latent_mae)
 
+        def contrastive_loss_func(args):
+            """
+            Naive contrastive loss. Negative samples are taken from immediate next samples
+            :param args: true latent representations and predicted latent representations
+            :return: InfoNCE Loss
+            """
+            neg_samples = 8
+            latent_true, latent_pred = args
+            true_futures = latent_true[0, :, :]
+            predictions = []
+            # True predictions:
+            predictions.append(latent_pred[0, :, :])
+
+            for i in range(neg_samples - 1):
+                predictions.append(latent_true[i + 1, :, :])
+
+            dist_correct = K.clip(K.exp(K.sum((predictions[0] * true_futures), axis=-1)), 1e-6, 1e6)
+            dist_false = []
+
+            for i in range(neg_samples - 1):
+                dist_false.append(K.clip(K.exp(K.sum((predictions[0] * predictions[i + 1]), axis=-1)), 1e-6, 1e6))
+
+            dist_false.append(dist_correct)
+            total_dist_false = tf.add_n(dist_false)
+
+            loss = -K.mean(K.log(dist_correct) - K.log(total_dist_false), keepdims=True)
+            return loss
+
         # Minimisation of difference between MAE of autoencoder and MAE of future latent representations
-        final_loss = Lambda(final_loss_func, output_shape=(1,), name='final_loss')([input_feats, autoencoder_prediction,
-                                                                                    latent_future, future_prediction])
+        # final_loss = Lambda(final_loss_func, output_shape=(1,), name='final_loss')([input_feats, autoencoder_prediction,
+        #                                                                             latent_future, future_prediction])
+
+        final_loss = Lambda(contrastive_loss_func, output_shape=(1,), name='final_loss')([latent_future,
+                                                                                          future_prediction])
 
         # Model
-        self.model = Model([input_feats, input_feats_future], [final_loss, model_out, autoencoder_prediction])
+        self.model = Model([input_feats, input_feats_future], [final_loss, autoencoder_prediction])
 
         print(self.model.summary())
 
@@ -172,8 +205,8 @@ class ConvPCModel(ModelBase):
 
         # Configuration of learning process
         adam = Adam(lr=self.learning_rate)
-        self.model.compile(optimizer=adam, loss={'final_loss': lambda y_true, y_pred: y_pred, 'concatenate': mae_latent,
-                                                 'autoencoder': 'mean_absolute_error'}, loss_weights=[0.2, 0.4, 0.4])
+        self.model.compile(optimizer=adam, loss={'final_loss': lambda y_true, y_pred: y_pred,
+                                                 'autoencoder': 'mean_absolute_error'})
 
         # Model file name for checkpoint and log
         model_file_name = os.path.join(self.full_path_output_folder, self.language +
@@ -200,7 +233,7 @@ class ConvPCModel(ModelBase):
         y_future = np.roll(self.y_train.reshape(self.y_train.shape[0]*self.y_train.shape[1], self.y_train.shape[-1]),
                            -15, axis=0).reshape(self.y_train.shape)
 
-        self.model.fit(x=[self.x_train, self.y_train], y=[y_dummy, y_dummy, self.x_train], epochs=self.epochs,
+        self.model.fit(x=[self.x_train, self.y_train], y=[y_dummy, self.x_train], epochs=self.epochs,
                        batch_size=self.batch_size, validation_split=0.3,
                        callbacks=[tensorboard, early_stop, checkpoint])
 
@@ -211,11 +244,18 @@ class ConvPCModel(ModelBase):
         self.model = load_model(self.model_path, compile=False)
 
         if self.use_last_layer:
-            predictor = self.model
-            # Calculate predictions dimensions (samples, 200, latent-dimension)
-            _, predictions, _ = predictor.predict([x_test, x_test])
-            # only first part of the concatenated output
-            predictions = predictions[:, :, :self.conv_units]
+            # predictor = self.model
+            # # Calculate predictions dimensions (samples, 200, latent-dimension)
+            # _, predictions, _ = predictor.predict([x_test, x_test])
+            # # only first part of the concatenated output
+            # predictions = predictions[:, :, :self.conv_units]
+            # Predict using the latent future representations
+            input_layer = self.model.get_layer('input_layer').output
+            input_future_layer = self.model.get_layer('input_future_layer').output
+            latent_fut_layer = self.model.get_layer('latent_future').output
+            predictor = Model([input_layer, input_future_layer], latent_fut_layer)
+
+            predictions = predictor.predict([x_test, x_test])
         else:
             # Prediction of model will use latent representation (intermediate layer)
             input_layer = self.model.get_layer('input_layer').output
