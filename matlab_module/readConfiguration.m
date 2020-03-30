@@ -35,6 +35,9 @@ catch
     configuration.feature_extraction.method.folder_name = 'mfcc';
     configuration.feature_extraction.method.bands = 0;
     configuration.feature_extraction.reset_samples = false;
+    configuration.feature_extraction.train = true;
+    configuration.feature_extraction.test = true;
+    configuration.feature_extraction.max_train = true;
 end
 
 % verify JSON structure, avoid if default configuration is used.
@@ -228,5 +231,43 @@ if ~default
                  'Default value will be used instead: false']);
         configuration.feature_extraction.reset_samples = false;
     end
+    
+    try    
+        if ~islogical(configuration.feature_extraction.train)
+            warning(['feature_extraction.train should be '...
+                     'boolean. Training data will be processed.']);
+            configuration.feature_extraction.train = true;
+        end
+    catch
+        warning(['feature_extraction.train does not exist. ' ... 
+                 'Default value will be used instead: true']);
+        configuration.feature_extraction.train = true;
+    end
+    
+     try    
+        if ~islogical(configuration.feature_extraction.test)
+            warning(['feature_extraction.test should be '...
+                     'boolean. Test data will be processed.']);
+            configuration.feature_extraction.test = true;
+        end
+    catch
+        warning(['feature_extraction.test does not exist. ' ... 
+                 'Default value will be used instead: true']);
+        configuration.feature_extraction.test = true;
+     end
+     
+     try
+        if ~islogical(configuration.feature_extraction.max_train)
+            warning(['feature_extraction.max_train should be '...
+                     'boolean. Training data will be processed up to '...
+                     '2 GB.']);
+            configuration.feature_extraction.max_train = true;
+        end
+    catch
+        warning(['feature_extraction.max_train does not exist. ' ... 
+                 'Default value will be used instead: true']);
+        configuration.feature_extraction.max_train = true;
+    end
+    
 end
 end

@@ -19,6 +19,9 @@
       "folder_name": "name_of_folder_where_to_save_the_features",
       "bands": 80
     },
-    "reset_samples": false
+    "reset_samples": false,
+    "train": true,
+    "test": true,
+    "max_train": true
   }
 }
