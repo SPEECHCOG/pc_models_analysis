@@ -194,9 +194,18 @@ def load_training_features(train_in, train_out):
     :param train_out: configuration of training output features
     :return: two numpy arrays: training input features and training output features
     """
+    # Training file could be saved in scipy or h5py format.
+    try:
+        with h5py.File(train_in[0], 'r') as train_in_file:
+            x_train = np.array(train_in_file[train_in[1]]).transpose()
+    except OSError:
+        x_train = scipy.io.loadmat(train_in[0])[train_in[1]]
 
-    x_train = scipy.io.loadmat(train_in[0])[train_in[1]]
-    y_train = scipy.io.loadmat(train_out[0])[train_out[1]]
+    try:
+        with h5py.File(train_out[0], 'r') as train_out_file:
+            y_train = np.array(train_out_file[train_out[1]]).transpose()
+    except OSError:
+        y_train = scipy.io.loadmat(train_out[0])[train_out[1]]
 
     return x_train, y_train
 
