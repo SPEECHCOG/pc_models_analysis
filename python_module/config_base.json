@@ -21,6 +21,10 @@
         "rnn_dropout": 0.2,
         "rnn_units":64,
         "residual": true
+      },
+      "convpc": {
+        "conv_units": 64,
+        "learning_rate": 0.001
       }
     }
   },
@@ -35,6 +39,10 @@
     "durations": ["10"],
     "use_last_layer": false,
     "window_shift": 0.01,
-    "files_limit": 10
+    "files_limit": 10,
+    "use_pca": true,
+    "convpc": {
+      "conv_units": 32
+    }
   }
 }
