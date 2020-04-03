@@ -45,7 +45,19 @@ APC_CONFIG = [
 ]
 
 CONVPC_CONFIG = [
-    ("conv_units", int, 128, False),
+    ("prenet", bool, True, False),
+    ("prenet_layers", int, 3, False),
+    ("prenet_dropout", float, 0.2, False),
+    ("prenet_units", int, 128, False),
+    ("apc_residual", int, True, False),
+    ("apc_layers", int, 3, False),
+    ("apc_dropout", float, 0.2, False),
+    ("apc_units", int, 512, False),
+    ("cpc_layers", int, 3, False),
+    ("cpc_dropout", float, 0.2, False),
+    ("cpc_units", int, 512, False),
+    ("cpc_neg", int, 10, False),
+    ("cpc_steps", int, 12, False),
     ("learning_rate", float, 0.001, False)
 ]
 
@@ -176,13 +188,6 @@ def validate_prediction(config):
     for path in [config['prediction']['model_path']] + test_paths:
         if not os.path.exists(path):
             raise Exception('The file does not exist: %s' % path)
-
-    # Validate ConvPC params
-    if config['prediction']['model_type'] == 'convpc':
-        if not config['prediction']['convpc']:
-            config['prediction']['convpc'] = {}
-        validate_fields(config['prediction']['convpc'], CONVPC_CONFIG)
-
 
     return config
 

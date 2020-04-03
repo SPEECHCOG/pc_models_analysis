@@ -23,7 +23,19 @@
         "residual": true
       },
       "convpc": {
-        "conv_units": 64,
+        "prenet": true,
+        "prenet_layers": 3,
+        "prenet_dropout": 0.2,
+        "prenet_units": 128,
+        "apc_residual": true,
+        "apc_layers": 3,
+        "apc_dropout": 0.2,
+        "apc_units": 512,
+        "cpc_layers": 3,
+        "cpc_dropout": 0.2,
+        "cpc_units": 512,
+        "cpc_neg": 10,
+        "cpc_steps": 12,
         "learning_rate": 0.001
       }
     }
@@ -40,9 +52,6 @@
     "use_last_layer": false,
     "window_shift": 0.01,
     "files_limit": 10,
-    "use_pca": true,
-    "convpc": {
-      "conv_units": 32
-    }
+    "use_pca": true
   }
 }

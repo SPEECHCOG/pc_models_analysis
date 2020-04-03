@@ -14,104 +14,202 @@ import tensorflow as tf
 from keras import backend as K
 from sklearn.decomposition import PCA
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
-from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Concatenate, Lambda, Dense, Dropout, Add
-from tensorflow.keras.losses import mean_absolute_error
+from tensorflow.keras.layers import Input, Conv1D, Layer, Lambda, Dense, Dropout, Add
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
 from models.create_prediction_files import create_prediction_files
 from models.model_base import ModelBase
 
+
 # Blocks used in the ConvPC architecture:
 # * Encoder (Prenet)
 # * APC (Convolutions)
 # * CPC (Convolutions <context part>)
+class Block(Layer):
+    def __init__(self, name):
+        super(Block, self).__init__(name=name)
+
+    def get_layer(self, name=None, index=None):
+        if index is not None:
+            if len(self.layers) <= index:
+                raise ValueError('Was asked to retrieve layer at index ' + str(index) +
+                                 ' but model only has ' + str(len(self.layers)) +
+                                 ' layers.')
+            else:
+                return self.layers[index]
+        else:
+            if not name:
+                raise ValueError('Provide either a layer name or layer index.')
+            for layer in self.layers:
+                if layer.name == name:
+                    return layer
+            raise ValueError('No such layer: ' + name)
 
 
-def prenet_block(inputs, n_layers, units, dropout, block_name='PreNet'):
+class Prenet(Block):
     """
-    It creates a keras block for the encoder part
-    :param inputs: A tensor with the input features
-    :param n_layers: Number of the full connected layers
-    :param units: Number of units per layer
-    :param dropout: Percentage of dropout between layers
-    :param block_name: Name of the block, by default PreNet as in APC
-    :return: A tensor with the output of the block
+    It creates a keras layer for the encoder part
     """
-    with K.name_scope(block_name):
+    def __init__(self, n_layers, units, dropout, name='PreNet'):
+        """
+        :param n_layers: Number of the full connected layers
+        :param units: Number of units per layer
+        :param dropout: Percentage of dropout between layers
+        :param name: Name of the block, by default PreNet as in APC
+        """
+        super(Prenet, self).__init__(name=name)
+        self.layers = []
+        self.n_layers = n_layers
+        self.units = units
+        self.dropout = dropout
+        with K.name_scope(name):
+            for i in range(n_layers):
+                self.layers.append(Dense(units, activation='relu', name='prenet_linear_' + str(i)))
+                self.layers.append(Dropout(dropout, name='prenet_dropout_' + str(i)))
+
+    def call(self, inputs, **kwargs):
+        """
+        It is execute when an input tensor is passed
+        :param **kwargs:
+        :param inputs: A tensor with the input features
+        :return: A tensor with the output of the block
+        """
         features = inputs
-        for i in range(n_layers):
-            features = Dense(units, activation='relu', name='prenet_linear_' + str(i))(features)
-            features = Dropout(dropout, name='prenet_dropout_' + str(i))(features)
-    return features
+        for i in range(len(self.layers)):
+            features = self.layers[i](features)
+        return features
+
+    def get_config(self):
+        return {'n_layers': self.n_layers, 'units': self.units, 'dropout': self.dropout}
 
 
-def apc_block(inputs, n_layers, units, residual, dropout, block_name='APC'):
+class APC(Block):
     """
-    It creates a keras block for the APC part
+    It creates a keras layer for the APC part
     :param inputs: A tensor with the input features
     :param n_layers: Number of convolutional layers
-    :param units: Number of channels per convolutional layer
+    :param units: Number of filters per convolutional layer
     :param residual: A boolean stating if residual connections are used or not
     :param dropout: Percentage of dropout between layers
     :param block_name: Name of the block, by default APC
     :return: A tensor with the output of the block
     """
-    with K.name_scope(block_name):
+    def __init__(self, n_layers, units, residual, dropout, name='APC'):
+        super(APC, self).__init__(name=name)
+        self.layers = []
+        self.n_layers = n_layers
+        self.layers_type =[]
+        self.residual = residual
+        self.units = units
+        self.dropout = dropout
+
+        with K.name_scope(name):
+            for i in range(n_layers):
+                if not residual and i+1 == n_layers:
+                    self.layers.append(Conv1D(units, 3, padding='causal', activation='relu',
+                                              name='apc_latent_layer'))
+                    self.layers_type.append('conv')
+                else:
+                    self.layers.append(Conv1D(units, 3, padding='causal', activation='relu',
+                                              name='conv_layer_' + str(i)))
+                    self.layers_type.append('conv')
+
+                if i+1 < n_layers:
+                    # Dropout to all layers except last layer
+                    self.layers.append(Dropout(dropout, name='conv_dropout_'+str(i)))
+                    self.layers_type.append('dropout')
+
+                if residual:
+                    if i+1 < n_layers:
+                        self.layers.append(Add(name='conv_residual_'+str(i)))
+                        self.layers_type.append('add')
+
+                    # Update output for next layer (PostNet) if this is the last layer. This will also be the latent
+                    # representation.
+                    if i+1 == n_layers:
+                        self.layers.append(Add(name='apc_latent_layer'))
+                        self.layers_type.append('add')
+
+    def call(self, inputs, **kwargs):
+        """
+        It is execute when an input tensor is passed
+        :param **kwargs:
+        :param inputs: A tensor with the input features
+        :return: A tensor with the output of the block
+        """
+        n_feats = inputs.shape[-1]
         conv_input = inputs
-        n_feats = inputs.shape(-1)
-        for i in range(n_layers):
-            if residual and i+1 == n_layers:
-                conv_output = Conv1D(units, 3, padding='causal', activation='relu',
-                                     name='conv_layer_'+str(i))(conv_input)
+
+        residual_first = False
+        if self.residual:
+            if self.units != n_feats:
+                # The first residual connection cannot be made, therefore the Add layer can be removed
+                if self.layers_type[2] == 'add':
+                    del self.layers_type[2]
+                    del self.layers[2]
+                residual_first = False
             else:
-                conv_output = Conv1D(units, 3, padding='causal', activation='relu',
-                                     name='apc_latent_layer_'+str(i))(conv_input)
+                residual_first = True
 
-            if i+1 < n_layers:
-                # Dropout to all layers except last layer
-                conv_output = Dropout(dropout, name='conv_dropout_'+str(i))(conv_output)
+        conv_output = None
+        for i, layer in enumerate(self.layers):
+            if self.layers_type[i] == 'conv':
+                conv_output = layer(conv_input)
+            if self.layers_type[i] == 'dropout':
+                if not self.residual or (not residual_first and i == 1):
+                    # When there is not residual connection after the dropout, this is the input for the next
+                    # convolution
+                    conv_input = layer(conv_output)
+                else:
+                    conv_output = layer(conv_output)
+            if self.layers_type[i] == 'add':
+                conv_input = layer([conv_input, conv_output])
+                if i+1 == len(self.layers):
+                    # If it is the last layer, then this is the output of the block
+                    conv_output = conv_input
+        return conv_output
 
-            if residual:
-                # residual connection is applied to the first layer if the input has a number of features (n_feats)
-                # equal to the Conv units, otherwise is omitted for first layer.
-                residual_first = (i == 0 and n_feats == units)
-
-                if (i+1 < n_layers and i != 0) or residual_first:
-                    conv_input = Add(name='conv_residual_'+str(i))([conv_input, conv_output])
-
-                # Update output for next layer (PostNet) if this is the last layer. This will also be the latent
-                # representation.
-                if i+1 == n_layers:
-                    conv_output = Add(name='apc_latent_layer')([conv_input, conv_output])
-
-                # Update input for next layer
-                if not residual_first and i == 0:
-                    # Residual connection won't be applied but we need to update input value for next Convolutional
-                    # layer to the output of Conv1D + dropout
-                    conv_input = conv_output
-            else:
-                # Output of the dropout or RNN layer in the case of the last layer
-                conv_input = conv_output
-    return conv_output
+    def get_config(self):
+        return {'n_layers': self.n_layers, 'units': self.units, 'dropout': self.dropout, 'residual': self.residual}
 
 
-def cpc_block(inputs, n_layers, units, dropout, n_neg, steps, block_name='CPC'):
+class CPC(Block):
     """
-    It creates a keras block for the CPC part
-    :param inputs: A tensor with the input features
-    :param n_layers: Number of convolutional layers
-    :param units: Number of channels per convolutional layer
-    :param dropout: Percentage of dropout between layers
-    :param n_neg: Number of negative samples use for the contrastive loss
-    :param steps: Number of steps in the future to predict
-    :param block_name: Name of the block, by default CPC
-    :return: A tensor with the output of the block
+    It creates a keras layer for the CPC part
     """
-    feats = inputs
-    
+    def __init__(self, n_layers, units, dropout, n_neg, steps, name='CPC'):
+        """
+        :param n_layers: Number of convolutional layers
+        :param units: Number of filters per convolutional layer
+        :param dropout: Percentage of dropout between layers
+        :param n_neg: Number of negative samples use for the contrastive loss
+        :param steps: Number of steps in the future to predict
+        :param block_name: Name of the block, by default CPC
+        """
+        super(CPC, self).__init__(name=name)
+        self.n_layers = n_layers
+        self.units = units
+        self.dropout = dropout
+        self.layers = []
+        with K.name_scope(name):
+            for i in range(n_layers):
+                self.layers.append(Conv1D(units, 3, padding='causal', activation='relu', name='conv_layer_'+str(i)))
+                self.layers.append(Dropout(dropout, name='conv_dropout_'+str(i)))
 
+    def call(self, inputs, **kwargs):
+        """
+        It is execute when an input tensor is passed
+        :param inputs: A tensor with the input features
+        :return: A tensor with the output of the block
+        """
+        features = inputs
+        for layer in self.layers:
+            features = layer(features)
+        return features
 
+    def get_config(self):
+        return {'n_layers': self.n_layers, 'units': self.units, 'dropout': self.dropout}
 
 
 class ConvPCModel(ModelBase):
@@ -150,7 +248,25 @@ class ConvPCModel(ModelBase):
 
         # Load ConvPC configurations
         convpc_config = config['model']['convpc']
-        self.conv_units = convpc_config['conv_units']
+        # Prenet params
+        self.prenet = convpc_config['prenet']
+        self.prenet_layers = convpc_config['prenet_layers']
+        self.prenet_dropout = convpc_config['prenet_dropout']
+        self.prenet_units = convpc_config['prenet_units']
+
+        # APC params
+        self.apc_residual = convpc_config['apc_residual']
+        self.apc_layers = convpc_config['apc_layers']
+        self.apc_dropout = convpc_config['apc_dropout']
+        self.apc_units = convpc_config['apc_units']
+
+        # CPC params
+        self.cpc_layers = convpc_config['cpc_layers']
+        self.cpc_dropout = convpc_config['cpc_dropout']
+        self.cpc_units = convpc_config['cpc_units']
+        self.cpc_neg = convpc_config['cpc_neg']
+        self.cpc_steps = convpc_config['cpc_steps']
+
         self.learning_rate = convpc_config['learning_rate']
 
         # Define model
@@ -163,51 +279,24 @@ class ConvPCModel(ModelBase):
         input_feats_future = Input(shape=self.input_shape, name='input_future_layer')
 
         # Encoding part
-        units = [self.conv_units, 16, 8, 16, self.conv_units]
-        conv_layers = []
-        maxpool_layers = []
+        prenet_block = Prenet(self.prenet_layers, self.prenet_units, self.prenet_dropout)
+        prenet_output = prenet_block(input_feats)
 
-        for i in range(len(units)):
-            conv_layers.append(Conv1D(units[i], kernel_size=3, padding='same', activation='relu',
-                                      name='conv_' + str(i)))
-            if i == len(units) - 1:
-                maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_layer'))
-            else:
-                maxpool_layers.append(MaxPooling1D(3, 1, padding='same', name='pool_' + str(i)))
+        # APC Part
+        apc_block = APC(self.apc_layers, self.apc_units, self.apc_residual, self.apc_dropout)
+        apc_output = apc_block(prenet_output)
+
+        # CPC Part
+        cpc_block = CPC(self.cpc_layers, self.cpc_units, self.cpc_dropout, self.cpc_neg,
+                               self.cpc_steps)
+        cpc_output = cpc_block(apc_output)
+
+        # Loss 1 (Mean Absolute Error)
 
         # Use for restricting latent representations
-        autoencoder = Conv1D(self.features, kernel_size=1, strides=1, padding='same', name='autoencoder')
+        autoencoder = Conv1D(self.features, kernel_size=1, strides=1, padding='same', name='apc_posnet')
 
-        # Predictive coding part
-        latent_layers = []
-        maxpool_latent_layers = []
-
-        for i in range(len(units)):
-            latent_layers.append(Conv1D(units[i], kernel_size=3, padding='same', activation='relu',
-                                        name='conv_fut_' + str(i)))
-            if i == len(units) -1:
-                maxpool_latent_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_future'))
-            maxpool_latent_layers.append(MaxPooling1D(3, 1, padding='same', name='latent_pool_' + str(i)))
-
-        # Outputs
-        for i in range(len(conv_layers)):
-            if i == 0:
-                # Firt layer should be applied to inputs
-                future_prediction = maxpool_layers[i](conv_layers[i](input_feats))
-                latent_future = maxpool_layers[i](conv_layers[i](input_feats_future))
-                autoencoder_prediction = maxpool_layers[i](conv_layers[i](input_feats))
-            else:
-                future_prediction = maxpool_layers[i](conv_layers[i](future_prediction))
-                latent_future = maxpool_layers[i](conv_layers[i](latent_future))
-                autoencoder_prediction = maxpool_layers[i](conv_layers[i](autoencoder_prediction))
-
-        for i in range(len(latent_layers)):
-            future_prediction = maxpool_latent_layers[i](latent_layers[i](future_prediction))
-
-        autoencoder_prediction = autoencoder(autoencoder_prediction)
-
-        # concatenate gru predictions and latent_future (y_true)
-        model_out = Concatenate()([future_prediction, latent_future])
+        autoencoder_prediction = autoencoder(apc_output)
 
         def contrastive_loss_func(args):
             """
@@ -237,12 +326,8 @@ class ConvPCModel(ModelBase):
             loss = -K.mean(K.log(dist_correct) - K.log(total_dist_false), keepdims=True)
             return loss
 
-        # Minimisation of difference between MAE of autoencoder and MAE of future latent representations
-        # final_loss = Lambda(final_loss_func, output_shape=(1,), name='final_loss')([input_feats, autoencoder_prediction,
-        #                                                                             latent_future, future_prediction])
-
-        final_loss = Lambda(contrastive_loss_func, output_shape=(1,), name='final_loss')([latent_future,
-                                                                                          future_prediction])
+        final_loss = Lambda(contrastive_loss_func, output_shape=(1,), name='final_loss')([apc_output,
+                                                                                          cpc_output])
 
         # Model
         self.model = Model([input_feats, input_feats_future], [final_loss, autoencoder_prediction])
