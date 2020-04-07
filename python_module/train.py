@@ -40,7 +40,7 @@ def train(config_path):
     elif model_type == 'convpc':
         model = ConvPCModel()
         model.load_training_configuration(config, x_train, y_train)
-        model.train()
+        # model.train()
     elif model_type == 'convpc2':
         model = ConvPC2Model()
         model.load_training_configuration(config, x_train, y_train)

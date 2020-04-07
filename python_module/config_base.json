@@ -36,6 +36,7 @@
         "cpc_units": 512,
         "cpc_neg": 10,
         "cpc_steps": 12,
+        "dropout": 0.2,
         "learning_rate": 0.001
       }
     }

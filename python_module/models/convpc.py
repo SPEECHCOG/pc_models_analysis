@@ -267,6 +267,7 @@ class ConvPCModel(ModelBase):
         self.cpc_neg = convpc_config['cpc_neg']
         self.cpc_steps = convpc_config['cpc_steps']
 
+        self.dropout = convpc_config["dropout"]
         self.learning_rate = convpc_config['learning_rate']
 
         # Define model
@@ -274,9 +275,10 @@ class ConvPCModel(ModelBase):
         self.input_shape = self.x_train.shape[1:]
         self.features = self.x_train.shape[2]
 
+        # Dropout layer
+        dropout_layer = Dropout(self.dropout, name='dropout_blocks')
         # Input tensor
         input_feats = Input(shape=self.input_shape, name='input_layer')
-        input_feats_future = Input(shape=self.input_shape, name='input_future_layer')
 
         # Encoding part
         prenet_block = Prenet(self.prenet_layers, self.prenet_units, self.prenet_dropout)
@@ -284,40 +286,90 @@ class ConvPCModel(ModelBase):
 
         # APC Part
         apc_block = APC(self.apc_layers, self.apc_units, self.apc_residual, self.apc_dropout)
-        apc_output = apc_block(prenet_output)
+        apc_features = apc_block(prenet_output)
+        # Dropout before passing to CPC
+        apc_output = dropout_layer(apc_features)
 
         # CPC Part
         cpc_block = CPC(self.cpc_layers, self.cpc_units, self.cpc_dropout, self.cpc_neg,
                                self.cpc_steps)
         cpc_output = cpc_block(apc_output)
-
-        # Loss 1 (Mean Absolute Error)
+        cpc_output = dropout_layer(cpc_output)
 
         # Use for restricting latent representations
         autoencoder = Conv1D(self.features, kernel_size=1, strides=1, padding='same', name='apc_posnet')
-
         autoencoder_prediction = autoencoder(apc_output)
+
+        def get_negative_samples(true_features):
+            """
+            It calculates the negative samples re-ordering the time-steps of the true features.
+            :param true_features: A tensor with the apc predictions for the input.
+            :return: A tensor with the negative samples.
+            """
+            # Shape SxTxF
+            sample, timesteps, features = true_features.shape
+            # New shape FxSxT
+            true_features = K.permute_dimensions(true_features, pattern=(2,0,1))
+            # New shape Fx (S*T)
+            true_features = K.reshape(true_features, (features,-1))
+
+            high = timesteps
+
+            # New order for timesteps
+            indices = np.repeat(np.expand_dims(np.arange(timesteps), axis=-1), self.cpc_neg)
+            neg_indices = np.random.randint(size=(sample, self.cpc_neg*timesteps), low=0, high=high-1)
+            neg_indices[neg_indices >= indices] += 1
+
+            for i in range(1, sample):
+                neg_indices[i] += i*high
+
+            # Reorder for negative samples
+            negative_samples = tf.gather(true_features, neg_indices.reshape(-1), axis=1)
+            negative_samples = K.permute_dimensions(K.reshape(negative_samples,
+                                                              (features, sample, self.cpc_neg, timesteps)),
+                                                    (2, 1, 3, 0))
+            return negative_samples
 
         def contrastive_loss_func(args):
             """
-            Naive contrastive loss. Negative samples are taken from immediate next samples
-            :param args: true latent representations and predicted latent representations
+            Negative samples are obtained by reordering the timesteps of the input features, Then the softmax and
+            cross entropy loss is calculating summing the value for each step.
+            :param args: true features (apc output), the context features (cpc_outputs)
             :return: InfoNCE Loss
             """
-            neg_samples = 8
-            latent_true, latent_pred = args
-            true_futures = latent_true[0, :, :]
+            true_latent, context_latent = args
+
+            # Project true_latent to vector space of context_latent
+            true_latent = cpc_block(true_latent)
+
+            # Calculate the following steps using context_latent
+            context_latent = K.expand_dims(context_latent, -1)
+            context_latent = Conv2DTranspose(self.cpc_steps, kernel_size=1, strides=1)(context_latent)
+
+            negative_samples = get_negative_samples(true_latent)
+
+            true_latent = K.expand_dims(true_latent, 0)
+
+            targets = K.concatenate([true_latent, negative_samples], 0)
+            copies = self.cpc_neg + 1  # total of samples in targets
+
+            samples, timesteps, features, steps = context_latent.shape
+
+            predictions =
+
+
+            true_futures = true_latent[0, :, :]
             predictions = []
             # True predictions:
-            predictions.append(latent_pred[0, :, :])
+            predictions.append(context_latent[0, :, :])
 
-            for i in range(neg_samples - 1):
-                predictions.append(latent_true[i + 1, :, :])
+            for i in range(self.cpc_neg - 1):
+                predictions.append(true_latent[i + 1, :, :])
 
             dist_correct = K.clip(K.exp(K.sum((predictions[0] * true_futures), axis=-1)), 1e-6, 1e6)
             dist_false = []
 
-            for i in range(neg_samples - 1):
+            for i in range(self.cpc_neg - 1):
                 dist_false.append(K.clip(K.exp(K.sum((predictions[0] * predictions[i + 1]), axis=-1)), 1e-6, 1e6))
 
             dist_false.append(dist_correct)
@@ -326,11 +378,11 @@ class ConvPCModel(ModelBase):
             loss = -K.mean(K.log(dist_correct) - K.log(total_dist_false), keepdims=True)
             return loss
 
-        final_loss = Lambda(contrastive_loss_func, output_shape=(1,), name='final_loss')([apc_output,
+        final_loss = Lambda(contrastive_loss_func, output_shape=(1,), name='final_loss')([apc_features,
                                                                                           cpc_output])
 
         # Model
-        self.model = Model([input_feats, input_feats_future], [final_loss, autoencoder_prediction])
+        self.model = Model(input_feats, [final_loss, autoencoder_prediction])
 
         print(self.model.summary())
 
