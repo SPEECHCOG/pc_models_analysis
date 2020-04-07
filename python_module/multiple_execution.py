@@ -10,6 +10,7 @@ It changes the json configuration file according to the language code given, and
 """
 import argparse
 import json
+import os
 import sys
 
 from train import train
@@ -46,8 +47,11 @@ def change_configuration_file(lang_code, json_path='config.json'):
         configuration['training']['language'] = new_lang
 
     # save json
-    with open(json_path, 'w') as f:
+    folder_path, file_name = os.path.split(json_path)
+    output_file_path = os.path.join(folder_path, new_lang + '_' + file_name)
+    with open(output_file_path, 'w') as f:
         json.dump(configuration, f, indent=2)
+    return output_file_path
 
 if __name__ == '__main__':
     # Call from command line
@@ -58,7 +62,8 @@ if __name__ == '__main__':
     parser.add_argument('--lang_code', type=int, default=3)
     args = parser.parse_args()
 
-    change_configuration_file(args.lang_code)
+    new_config_file = change_configuration_file(args.lang_code)
     # Train model
-    train('config.json')
+    train(new_config_file)
+    os.remove(new_config_file)
     sys.exit(0)

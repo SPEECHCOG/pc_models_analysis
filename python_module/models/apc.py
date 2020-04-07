@@ -82,7 +82,7 @@ class APCModel(ModelBase):
                                       verbose=1, save_best_only=True)
 
         # Tensorboard
-        log_dir = os.path.join(self.logs_folder_path, datetime.now().strftime("%Y_%m_%d-%H_%M"))
+        log_dir = os.path.join(self.logs_folder_path, self.language, datetime.now().strftime("%Y_%m_%d-%H_%M"))
         tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
 
         # Train the model
