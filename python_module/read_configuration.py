@@ -49,7 +49,7 @@ CONVPC_CONFIG = [
     ("prenet_layers", int, 3, False),
     ("prenet_dropout", float, 0.2, False),
     ("prenet_units", int, 128, False),
-    ("apc_residual", int, True, False),
+    ("apc_residual", bool, True, False),
     ("apc_layers", int, 3, False),
     ("apc_dropout", float, 0.2, False),
     ("apc_units", int, 512, False),
@@ -58,7 +58,7 @@ CONVPC_CONFIG = [
     ("cpc_units", int, 512, False),
     ("cpc_neg", int, 10, False),
     ("cpc_steps", int, 12, False),
-    ("dropout", float, 0.2, False)
+    ("dropout", float, 0.2, False),
     ("learning_rate", float, 0.001, False)
 ]
 

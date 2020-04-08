@@ -14,7 +14,7 @@ import tensorflow as tf
 from keras import backend as K
 from sklearn.decomposition import PCA
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
-from tensorflow.keras.layers import Input, Conv1D, Layer, Lambda, Dense, Dropout, Add
+from tensorflow.keras.layers import Input, Conv1D, Layer, Lambda, Dense, Dropout, Add, Conv2DTranspose
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
@@ -71,7 +71,6 @@ class Prenet(Block):
     def call(self, inputs, **kwargs):
         """
         It is execute when an input tensor is passed
-        :param **kwargs:
         :param inputs: A tensor with the input features
         :return: A tensor with the output of the block
         """
@@ -87,19 +86,21 @@ class Prenet(Block):
 class APC(Block):
     """
     It creates a keras layer for the APC part
-    :param inputs: A tensor with the input features
-    :param n_layers: Number of convolutional layers
-    :param units: Number of filters per convolutional layer
-    :param residual: A boolean stating if residual connections are used or not
-    :param dropout: Percentage of dropout between layers
-    :param block_name: Name of the block, by default APC
     :return: A tensor with the output of the block
     """
     def __init__(self, n_layers, units, residual, dropout, name='APC'):
+        """
+        :param n_layers: Number of convolutional layers
+        :param units: Number of filters per convolutional layer
+        :param residual: A boolean stating if residual connections are used or not
+        :param dropout: Percentage of dropout between layers
+        :param name: Name of the block, by default APC
+
+        """
         super(APC, self).__init__(name=name)
         self.layers = []
         self.n_layers = n_layers
-        self.layers_type =[]
+        self.layers_type = []
         self.residual = residual
         self.units = units
         self.dropout = dropout
@@ -134,7 +135,6 @@ class APC(Block):
     def call(self, inputs, **kwargs):
         """
         It is execute when an input tensor is passed
-        :param **kwargs:
         :param inputs: A tensor with the input features
         :return: A tensor with the output of the block
         """
@@ -178,14 +178,12 @@ class CPC(Block):
     """
     It creates a keras layer for the CPC part
     """
-    def __init__(self, n_layers, units, dropout, n_neg, steps, name='CPC'):
+    def __init__(self, n_layers, units, dropout, name='CPC'):
         """
         :param n_layers: Number of convolutional layers
         :param units: Number of filters per convolutional layer
         :param dropout: Percentage of dropout between layers
-        :param n_neg: Number of negative samples use for the contrastive loss
-        :param steps: Number of steps in the future to predict
-        :param block_name: Name of the block, by default CPC
+        :param name: Name of the block, by default CPC
         """
         super(CPC, self).__init__(name=name)
         self.n_layers = n_layers
@@ -291,8 +289,7 @@ class ConvPCModel(ModelBase):
         apc_output = dropout_layer(apc_features)
 
         # CPC Part
-        cpc_block = CPC(self.cpc_layers, self.cpc_units, self.cpc_dropout, self.cpc_neg,
-                               self.cpc_steps)
+        cpc_block = CPC(self.cpc_layers, self.cpc_units, self.cpc_dropout)
         cpc_output = cpc_block(apc_output)
         cpc_output = dropout_layer(cpc_output)
 
@@ -309,9 +306,9 @@ class ConvPCModel(ModelBase):
             # Shape SxTxF
             sample, timesteps, features = true_features.shape
             # New shape FxSxT
-            true_features = K.permute_dimensions(true_features, pattern=(2,0,1))
+            true_features = K.permute_dimensions(true_features, pattern=(2, 0, 1))
             # New shape Fx (S*T)
-            true_features = K.reshape(true_features, (features,-1))
+            true_features = K.reshape(true_features, (features, -1))
 
             high = timesteps
 
@@ -339,12 +336,14 @@ class ConvPCModel(ModelBase):
             """
             true_latent, context_latent = args
 
-            # Project true_latent to vector space of context_latent
+            # Project true_latent to the vector space of context_latent
+            # TODO This transformation could be instead a convolution from latent features to context features.
+            #  Check it!
             true_latent = cpc_block(true_latent)
 
             # Calculate the following steps using context_latent
             context_latent = K.expand_dims(context_latent, -1)
-            context_latent = Conv2DTranspose(self.cpc_steps, kernel_size=1, strides=1)(context_latent)
+            predictions = Conv2DTranspose(self.cpc_steps, kernel_size=1, strides=1)(context_latent)
 
             negative_samples = get_negative_samples(true_latent)
 
@@ -353,29 +352,34 @@ class ConvPCModel(ModelBase):
             targets = K.concatenate([true_latent, negative_samples], 0)
             copies = self.cpc_neg + 1  # total of samples in targets
 
-            samples, timesteps, features, steps = context_latent.shape
+            # samples, timesteps, features, steps = predictions.shape
 
-            predictions =
+            # Logits calculated from predictions and targets
+            logits = None
 
+            for i in range(self.cpc_steps):
+                if i == 0:
+                    # The time-steps are correspondent as is the first step.
+                    logits = tf.reshape(tf.einsum("stf,cstf->tsc", predictions[:, :, :, i], targets[:, :, :, :]), [-1])
+                else:
+                    # We need to match the time-step taking into account the step for which is being predicted
+                    logits = tf.concat([logits, tf.reshape(tf.einsum("stf,cstf->tsc", predictions[:, :-i, :, i],
+                                                                     targets[:, :, i:, :]), [-1])], 0)
 
-            true_futures = true_latent[0, :, :]
-            predictions = []
-            # True predictions:
-            predictions.append(context_latent[0, :, :])
+            predictions = tf.reshape(predictions, (-1, copies))
+            total_points = predictions.shape[0]
 
-            for i in range(self.cpc_neg - 1):
-                predictions.append(true_latent[i + 1, :, :])
+            # Labels, this should be the true value, that is 1.0 for the first copy (positive sample) and 0.0 for the
+            # rest.
+            label_idx = [True] + [False] * self.cpc_neg
+            labels = tf.where(label_idx, tf.ones(total_points, copies), tf.zeros(total_points, copies))
 
-            dist_correct = K.clip(K.exp(K.sum((predictions[0] * true_futures), axis=-1)), 1e-6, 1e6)
-            dist_false = []
+            # The loss is the softmax_cross_entropy_with_logits sum over all the steps. That is the categorical cross
+            # entropy using SUM as the reduction.
+            loss_layer = tf.keras.losses.CategoricalCrossentropy(from_logits=True,
+                                                                 reduction=tf.keras.losses.Reduction.SUM)
+            loss = loss_layer(labels, predictions)
 
-            for i in range(self.cpc_neg - 1):
-                dist_false.append(K.clip(K.exp(K.sum((predictions[0] * predictions[i + 1]), axis=-1)), 1e-6, 1e6))
-
-            dist_false.append(dist_correct)
-            total_dist_false = tf.add_n(dist_false)
-
-            loss = -K.mean(K.log(dist_correct) - K.log(total_dist_false), keepdims=True)
             return loss
 
         final_loss = Lambda(contrastive_loss_func, output_shape=(1,), name='final_loss')([apc_features,
