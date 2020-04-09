@@ -206,7 +206,10 @@ class CPC(Block):
         with K.name_scope(name):
             for i in range(n_layers):
                 self.layers.append(Conv1D(units, 3, padding='causal', activation='relu', name='conv_layer_'+str(i)))
-                self.layers.append(Dropout(dropout, name='conv_dropout_'+str(i)))
+                if i == n_layers - 1:
+                    self.layers.append(Dropout(dropout, name='cpc_context'))
+                else:
+                    self.layers.append(Dropout(dropout, name='conv_dropout_' + str(i)))
 
     def call(self, inputs, **kwargs):
         """
@@ -260,8 +263,7 @@ class ContrastiveLoss(Block):
         samples = K.shape(true_features)[0]
         timesteps = K.shape(true_features)[1]
         features = K.shape(true_features)[2]
-        #samples, timesteps, features = K.shape(true_features)
-        print(true_features.shape)
+
         # New shape FxSxT
         true_features = K.permute_dimensions(true_features, pattern=(2, 0, 1))
         # New shape Fx (S*T)
@@ -270,15 +272,12 @@ class ContrastiveLoss(Block):
         high = timesteps
 
         # New order for time-steps
-        #indices = tf.repeat(tf.expand_dims(np.arange(timesteps), axis=-1), self.neg)
         indices = tf.repeat(tf.expand_dims(tf.range(timesteps), axis=-1), self.neg)
-        #neg_indices = tf.random.randint(size=(samples, self.neg * timesteps), low=0, high=high - 1)
         neg_indices = tf.random.uniform(shape=(samples, self.neg * timesteps), minval=0, maxval=high - 1,
                                         dtype=tf.dtypes.int32)
-        #neg_indices[neg_indices >= indices] += 1
         neg_indices = tf.where(tf.greater_equal(neg_indices, indices), neg_indices + 1, neg_indices)
 
-        right_indices = tf.reshape(tf.range(samples), (-1,1))*high
+        right_indices = tf.reshape(tf.range(samples), (-1, 1))*high
         neg_indices = neg_indices + right_indices
 
         # Reorder for negative samples
@@ -445,7 +444,6 @@ class ConvPCModel(ModelBase):
         super(ConvPCModel, self).load_prediction_configuration(config)
 
         self.use_pca = config['use_pca']
-        self.conv_units = config['convpc']['conv_units']
 
     def train(self):
         """
@@ -491,30 +489,24 @@ class ConvPCModel(ModelBase):
 
     def predict(self, x_test, x_test_ind, duration):
 
-        self.model = load_model(self.model_path, compile=False)
+        self.model = load_model(self.model_path, compile=False, custom_objects={'Prenet': Prenet, 'APC': APC,
+                                                                                'CPC': CPC,
+                                                                                'ContrastiveLoss': ContrastiveLoss})
 
         if self.use_last_layer:
-            # predictor = self.model
-            # # Calculate predictions dimensions (samples, 200, latent-dimension)
-            # _, predictions, _ = predictor.predict([x_test, x_test])
-            # # only first part of the concatenated output
-            # predictions = predictions[:, :, :self.conv_units]
-            # Predict using the latent future representations
+            # Predict using the latent representations (APC output)
             input_layer = self.model.get_layer('input_layer').output
-            input_future_layer = self.model.get_layer('input_future_layer').output
-            latent_fut_layer = self.model.get_layer('latent_future').output
-            predictor = Model([input_layer, input_future_layer], latent_fut_layer)
+            latent_layer = self.model.get_layer('APC').get_layer('apc_latent_layer').output
+            predictor = Model(input_layer, latent_layer)
 
-            predictions = predictor.predict([x_test, x_test])
+            predictions = predictor.predict(x_test)
         else:
-            # Prediction of model will use latent representation (intermediate layer)
+            # Predict using the context representations (CPC output)
             input_layer = self.model.get_layer('input_layer').output
-            input_future_layer = self.model.get_layer('input_future_layer').output
-            latent_layer = self.model.get_layer('latent_layer').output
-            predictor = Model([input_layer, input_future_layer], latent_layer)
+            context_layer = self.model.get_layer('CPC').get_layer('cpc_context').output
+            predictor = Model(input_layer, context_layer)
 
-            # Calculate predictions dimensions (samples, 200, latent-dimension)
-            predictions = predictor.predict([x_test, x_test])
+            predictions = predictor.predict(x_test)
 
         # Apply PCA only if true in the configuration file.
         if self.use_pca:
