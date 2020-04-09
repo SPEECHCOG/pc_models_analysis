@@ -275,14 +275,14 @@ class ContrastiveLoss(Block):
         #neg_indices = tf.random.randint(size=(samples, self.neg * timesteps), low=0, high=high - 1)
         neg_indices = tf.random.uniform(shape=(samples, self.neg * timesteps), minval=0, maxval=high - 1,
                                         dtype=tf.dtypes.int32)
-        neg_indices[neg_indices >= indices] += 1
+        #neg_indices[neg_indices >= indices] += 1
+        neg_indices = tf.where(tf.greater_equal(neg_indices, indices), neg_indices + 1, neg_indices)
 
-        """
-        for i in range(1, samples):
-            neg_indices[i] += i * high
-        """
+        right_indices = tf.reshape(tf.range(samples), (-1,1))*high
+        neg_indices = neg_indices + right_indices
+
         # Reorder for negative samples
-        negative_samples = tf.gather(true_features, neg_indices.reshape(-1), axis=1)
+        negative_samples = tf.gather(true_features, tf.reshape(neg_indices, [-1]), axis=1)
         negative_samples = K.permute_dimensions(K.reshape(negative_samples,
                                                           (features, samples, self.neg, timesteps)),
                                                 (2, 1, 3, 0))
@@ -325,7 +325,7 @@ class ContrastiveLoss(Block):
                                                                  targets[:, :, i:, :]), [-1])], 0)
 
         logits = tf.reshape(logits, (-1, copies))
-        total_points = logits.shape[0]
+        total_points = tf.shape(logits)[0]
 
         # Labels, this should be the true value, that is 1.0 for the first copy (positive sample) and 0.0 for the
         # rest.
