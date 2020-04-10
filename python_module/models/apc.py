@@ -135,9 +135,12 @@ class APCModel(ModelBase):
 
         if self.save_matlab:
             # Save predictions in MatLab file using h5py formatting
-            import scipy.io
-            scipy.io.savemat(os.path.join(full_predictions_folder_path, self.language + '.mat'),
-                             {'pred': predictions, 'pred_ind': x_test_ind})
+            import hdf5storage
+            output = dict()
+            output['pred'] = predictions
+            output['pred_ind'] = x_test_ind
+            hdf5storage.savemat(os.path.join(full_predictions_folder_path, self.language + '.mat'), output,
+                                format='7.3')
 
         # Create predictions text files
         total_files = create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
