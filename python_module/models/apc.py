@@ -133,6 +133,12 @@ class APCModel(ModelBase):
                                                     self.features_folder_name, self.language, (duration + 's'))
         os.makedirs(full_predictions_folder_path, exist_ok=True)
 
+        if self.save_matlab:
+            # Save predictions in MatLab file using h5py formatting
+            import scipy.io
+            scipy.io.savemat(os.path.join(full_predictions_folder_path, self.language + '.mat'),
+                             {'pred': predictions, 'pred_ind': x_test_ind})
+
         # Create predictions text files
         total_files = create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
                                               limit=self.files_limit)

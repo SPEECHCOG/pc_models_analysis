@@ -63,6 +63,7 @@ class ModelBase(ABC):
         self.use_last_layer = config['use_last_layer']
         self.window_shift = config['window_shift']
         self.files_limit = config['files_limit']
+        self.save_matlab = config['save_matlab']
 
     @abstractmethod
     def train(self):

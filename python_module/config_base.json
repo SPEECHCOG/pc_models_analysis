@@ -53,6 +53,7 @@
     "use_last_layer": false,
     "window_shift": 0.01,
     "files_limit": 10,
-    "use_pca": true
+    "use_pca": true,
+    "save_matlab": true
   }
 }

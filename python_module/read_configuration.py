@@ -75,7 +75,7 @@ PREDICTION_CONFIG = [
     ('window_shift', float, 0.01, False),
     ('files_limit', int, -1, False),
     ('use_pca', bool, True, False),
-    ('convpc', dict, None, False)
+    ('save_matlab', bool, False, False)
 ]
 
 LANGUAGES = ['english', 'mandarin', 'french', 'LANG1', 'LANG2']
