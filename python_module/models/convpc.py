@@ -479,10 +479,6 @@ class ConvPCModel(ModelBase):
         # Create dummy prediction so that Keras does not raise an error for wrong dimension
         y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
 
-        # Use + N (10) frames in future to train future latent representations.
-        y_future = np.roll(self.y_train.reshape(self.y_train.shape[0]*self.y_train.shape[1], self.y_train.shape[-1]),
-                           -15, axis=0).reshape(self.y_train.shape)
-
         self.model.fit(x=self.x_train, y=[y_dummy, self.y_train], epochs=self.epochs, batch_size=self.batch_size,
                        validation_split=0.3, callbacks=[tensorboard, early_stop, checkpoint])
 

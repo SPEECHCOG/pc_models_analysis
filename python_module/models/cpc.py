@@ -3,12 +3,20 @@
 Contrastive Predictive Coding model
 [Representation Learning with Contrastive Predictive Coding]
 """
+import os
+from datetime import datetime
+
+import numpy as np
 import tensorflow as tf
 from keras import backend as K
+from sklearn.decomposition import PCA
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from tensorflow.keras.layers import Dropout, Conv1D, Input, GRU
 from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.optimizers import Adam
 
 from models.convpc import Block, ContrastiveLoss
+from models.create_prediction_files import create_prediction_files
 from models.model_base import ModelBase
 
 physical_devices = tf.config.list_physical_devices('GPU')
@@ -35,7 +43,7 @@ class FeatureEncoder(Block):
             for i in range(n_layers):
                 self.layers.append(Conv1D(units, 3, padding='causal', activation='relu', name='conv_layer_'+str(i)))
                 if i == n_layers - 1:
-                    self.layers.append(Dropout(dropout, name='cpc_latent'))
+                    self.layers.append(Dropout(dropout, name='cpc_latent_layer'))
                 else:
                     self.layers.append(Dropout(dropout, name='conv_dropout_' + str(i)))
 
@@ -147,16 +155,89 @@ class CPCModel(ModelBase):
         Train a CPC model
         :return: a trained model saved on disk
         """
-        pass
+        adam = Adam(lr=self.learning_rate)
+        self.model.compile(optimizer=adam, loss={'Contrastive_Loss': lambda y_true, y_pred: y_pred})
 
+        # Model file name for checkpoint and log
+        model_file_name = os.path.join(self.full_path_output_folder, self.language +
+                                       datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+
+        # log
+        self.write_log(model_file_name + '.txt')
+
+        # Callbacks for training
+        # Adding early stop based on validation loss and saving best model for later prediction
+        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
+        checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min',
+                                     verbose=1, save_best_only=True)
+
+        # Tensorboard
+        log_dir = os.path.join(self.logs_folder_path, self.language, datetime.now().strftime("%Y_%m_%d-%H_%M"))
+        tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
+
+        # Train the model
+        # Create dummy prediction so that Keras does not raise an error for wrong dimension
+        y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
+
+        self.model.fit(x=self.x_train, y=y_dummy, epochs=self.epochs, batch_size=self.batch_size,
+                       validation_split=0.3, callbacks=[tensorboard, early_stop, checkpoint])
+
+        return self.model
 
     def predict(self, x_test, x_test_ind, duration):
         """
-
-        :param x_test:
-        :param x_test_ind:
-        :param duration:
-        :return:
+        It predicts the representation for input test set.
+        :param x_test: a numpy array with the test features
+        :param x_test_ind: a numpy array as a lookup table for matching frames with utterances
+        :param duration: duration of the utterances
+        :return: predictions for the test set in txt files
         """
-        pass
+        self.model = load_model(self.model_path, compile=False, custom_objects={'FeatureEncoder': FeatureEncoder,
+                                                                                'ContrastiveLoss': ContrastiveLoss})
+
+        if self.use_last_layer:
+            # Predict using the latent representations (APC output)
+            input_layer = self.model.get_layer('input_layer').output
+            latent_layer = self.model.get_layer('Feature_Encoder').get_layer('cpc_latent_layer').output
+            predictor = Model(input_layer, latent_layer)
+
+            predictions = predictor.predict(x_test)
+        else:
+            # Predict using the context representations (CPC output)
+            input_layer = self.model.get_layer('input_layer').output
+            context_layer = self.model.get_layer('autoregressive_layer').output
+            predictor = Model(input_layer, context_layer)
+
+            predictions = predictor.predict(x_test)
+
+        # Apply PCA only if true in the configuration file.
+        if self.use_pca:
+            pca = PCA(0.95)  # Keep components that coverage 95% of variance
+            pred_orig_shape = predictions.shape
+            predictions = predictions.reshape(-1, predictions.shape[-1])
+            predictions = pca.fit_transform(predictions)
+            pred_orig_shape = list(pred_orig_shape)
+            pred_orig_shape[-1] = predictions.shape[-1]
+            pred_orig_shape = tuple(pred_orig_shape)
+            predictions = predictions.reshape(pred_orig_shape)
+
+        # Create folder for predictions
+        full_predictions_folder_path = os.path.join(self.output_folder, self.model_folder_name,
+                                                    self.features_folder_name, self.language, (duration + 's'))
+        os.makedirs(full_predictions_folder_path, exist_ok=True)
+
+        if self.save_matlab:
+            # Save predictions in MatLab file using h5py formatting
+            import hdf5storage
+            output = dict()
+            output['pred'] = predictions
+            output['pred_ind'] = x_test_ind
+            hdf5storage.savemat(os.path.join(full_predictions_folder_path, self.language + '.mat'), output,
+                                format='7.3')
+
+        # Create predictions text files
+        total_files = create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
+                                              limit=self.files_limit)
+
+        print('Predictions of {0} with duration {1}s: {2} files'.format(self.language, duration, total_files))
 

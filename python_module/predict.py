@@ -10,6 +10,7 @@ from models.apc import APCModel
 from models.autoencoder import Autoencoder
 from models.convpc import ConvPCModel
 from models.convpc_2 import ConvPC2Model
+from models.cpc import CPCModel
 from read_configuration import read_configuration_json, load_test_set
 
 
@@ -33,6 +34,8 @@ def predict(config_path):
         model = ConvPCModel()
     elif model_type == 'convpc2':
         model = ConvPC2Model()
+    elif model_type == 'cpc':
+        model = CPCModel()
     else:
         raise Exception('The model type "%s" is not supported' % model_type)
 

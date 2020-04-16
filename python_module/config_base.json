@@ -46,7 +46,8 @@
         "gru_units": 256,
         "dropout": 0.2,
         "neg": 10,
-        "steps": 12
+        "steps": 12,
+        "learning_rate": 0.001
       }
     }
   },
