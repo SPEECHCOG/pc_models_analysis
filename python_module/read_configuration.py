@@ -62,6 +62,17 @@ CONVPC_CONFIG = [
     ("learning_rate", float, 0.001, False)
 ]
 
+CPC_CONFIG = [
+    ("encoder_layers", int, 5, False),
+    ("encoder_units", int, 512, False),
+    ("encoder_dropout", float, 0.2, False),
+    ("gru_units", int, 256, False),
+    ("dropout", float, 0.2, False),
+    ("neg", int, 10, False),
+    ("steps", int, 12, False),
+    ("learning_rate",float, 0.001, False)
+]
+
 PREDICTION_CONFIG = [
     ('output_path', str, None, True),
     ('model_path', str, None, True),
@@ -144,11 +155,14 @@ def validate_training(config):
             config['training']['model']['apc'] = {}
         # validate parameters for apc model
         validate_fields(config['training']['model']['apc'], APC_CONFIG)
-
-    if config['training']['model']['type'] == 'convpc':
+    elif config['training']['model']['type'] == 'convpc':
         if not config['training']['model']['apc']:
             config['training']['model']['convpc'] = {}
         validate_fields(config['training']['model']['convpc'], CONVPC_CONFIG)
+    elif config['training']['model']['type'] == 'cpc':
+        if not config['training']['model']['cpc']:
+            config['training']['model']['cpc'] = {}
+        validate_fields(config['training']['model']['cpc'], CPC_CONFIG)
 
     return config
 

@@ -159,7 +159,7 @@ class APCModel(ModelBase):
         super(APCModel, self).load_training_configuration(config, x_train, y_train)
 
         # Model architecture: PreNet (stacked linear layers with ReLU activation and dropout) ->
-        # ACP (multi-layer GRU network) -> Postnet(Conv1D this is only used during training)
+        # APC (multi-layer GRU network) -> Postnet(Conv1D this is only used during training)
 
         # Load apc configuration parameters
         apc_config = config['model']['apc']

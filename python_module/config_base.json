@@ -38,6 +38,15 @@
         "cpc_steps": 12,
         "dropout": 0.2,
         "learning_rate": 0.001
+      },
+      "cpc": {
+        "encoder_layers": 5,
+        "encoder_units": 512,
+        "encoder_dropout": 0.2,
+        "gru_units": 256,
+        "dropout": 0.2,
+        "neg": 10,
+        "steps": 12
       }
     }
   },

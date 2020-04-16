@@ -14,7 +14,7 @@ import tensorflow as tf
 from keras import backend as K
 from sklearn.decomposition import PCA
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
-from tensorflow.keras.layers import Input, Conv1D, Layer, Lambda, Dense, Dropout, Add, Conv2DTranspose
+from tensorflow.keras.layers import Input, Conv1D, Layer, Dense, Dropout, Add, Conv2DTranspose
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
@@ -23,6 +23,7 @@ from models.model_base import ModelBase
 
 physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
+
 
 # Blocks used in the ConvPC architecture:
 # * Encoder (Prenet)
@@ -428,7 +429,7 @@ class ConvPCModel(ModelBase):
         autoencoder_prediction = autoencoder(apc_output)
 
         contrastive_loss = ContrastiveLoss(self.cpc_units, self.cpc_neg, self.cpc_steps)
-        contrastive_loss_output = contrastive_loss([apc_output, cpc_output])
+        contrastive_loss_output = contrastive_loss([apc_features, cpc_output])
 
         # Model
         self.model = Model(input_feats, [contrastive_loss_output, autoencoder_prediction])
