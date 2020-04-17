@@ -10,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 from keras import backend as K
 from sklearn.decomposition import PCA
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, Callback, ReduceLROnPlateau
 from tensorflow.keras.layers import Dropout, Conv1D, Input, GRU
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
@@ -21,6 +21,48 @@ from models.model_base import ModelBase
 
 physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
+
+
+class RatioEarlyStopping(Callback):
+    def __init__(self, ratio=0.0, patience=0, verbose=0, restore_best_weights=False):
+        super(RatioEarlyStopping, self).__init__()
+
+        self.ratio = ratio
+        self.patience = patience
+        self.verbose = verbose
+        self.restore_best_weights = restore_best_weights
+        self.wait = 0
+        self.stopped_epoch = 0
+        self.best_weights = None
+
+    def on_train_begin(self, logs=None):
+        self.wait = 0
+        self.stopped_epoch = 0
+
+    def on_epoch_end(self, epoch, logs=None):
+        val_loss = logs.get('val_loss')
+        train_loss = logs.get('loss')
+        current_ratio =  train_loss/val_loss
+
+        if current_ratio is None:
+            return
+        if current_ratio > self.ratio:
+            self.wait = 0
+            if self.restore_best_weights:
+                self.best_weights = self.model.get_weights()
+        else:
+            self.wait += 1
+            if self.wait >= self.patience:
+                self.stopped_epoch = epoch
+                self.model.stop_training = True
+                if self.restore_best_weights:
+                    if self.verbose > 0:
+                        print('Restoring model weights from the end of the best epoch.')
+                    self.model.set_weights(self.best_weights)
+
+    def on_train_end(self, logs=None):
+        if self.stopped_epoch > 0 and self.verbose > 0:
+            print('Epoch %05d: early stopping' % (self.stopped_epoch + 1))
 
 
 class FeatureEncoder(Block):
@@ -167,7 +209,9 @@ class CPCModel(ModelBase):
 
         # Callbacks for training
         # Adding early stop based on validation loss and saving best model for later prediction
+        # ratio_early_stop = RatioEarlyStopping(ratio=0.98, verbose=1, patience=self.early_stop_epochs)
         early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
+        # lr_on_plateau = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, verbose=1, mode='min')
         checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min',
                                      verbose=1, save_best_only=True)
 
