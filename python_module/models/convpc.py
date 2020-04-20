@@ -399,6 +399,8 @@ class ConvPCModel(ModelBase):
 
         self.dropout = convpc_config["dropout"]
         self.learning_rate = convpc_config['learning_rate']
+        self.pretrain_apc = convpc_config["pretrain_apc"]
+        self.apc_learning_rate = convpc_config["apc_learning_rate"]
 
         # Define model
         # input size and number of features. Input is numpy array of size (samples, time-steps, features)
@@ -437,7 +439,12 @@ class ConvPCModel(ModelBase):
 
         # Models
         self.apc_model = Model(input_feats, autoencoder_prediction)
-        self.apc_model.compile(optimizer=adam, loss='mean_absolute_error')
+
+        if self.pretrain_apc:
+            apc_adam = Adam(lr=self.apc_learning_rate)
+            self.apc_model.compile(optimizer=apc_adam, loss='mean_absolute_error')
+        else:
+            self.apc_model.compile(optimizer=adam, loss='mean_absolute_error')
 
         # Freeze APC and Prenet layers
         for layer in prenet_block.layers:
@@ -488,7 +495,8 @@ class ConvPCModel(ModelBase):
 
         # Callbacks for training
         # Adding early stop based on validation loss and saving best model for later prediction
-        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
+        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs,
+                                   restore_best_weights=True)
         checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min',
                                      verbose=1, save_best_only=True)
 
@@ -503,7 +511,7 @@ class ConvPCModel(ModelBase):
         train_model_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_model, 'train'))
         val_model_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_model, 'validation'))
 
-        # tensorboard = TensorBoard(log_dir=log_dir_model, write_graph=True, profile_batch=0)
+        tensorboard = TensorBoard(log_dir=log_dir_model, write_graph=True, profile_batch=0)
 
         log_dir_apc = os.path.join(self.logs_folder_path, 'apc_model', self.language,
                                    datetime.now().strftime("%Y_%m_%d-%H_%M"))
@@ -511,7 +519,7 @@ class ConvPCModel(ModelBase):
         train_apc_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_apc, 'train'))
         val_apc_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_apc, 'validation'))
 
-        # tensorboard2 = TensorBoard(log_dir=log_dir_apc, write_graph=True, profile_batch=0)
+        apc_tensorboard = TensorBoard(log_dir=log_dir_apc, write_graph=True, profile_batch=0)
 
         log_dir_cpc = os.path.join(self.logs_folder_path, 'cpc_model', self.language,
                                    datetime.now().strftime("%Y_%m_%d-%H_%M"))
@@ -519,67 +527,68 @@ class ConvPCModel(ModelBase):
         train_cpc_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_cpc, 'train'))
         val_cpc_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_cpc, 'validation'))
 
-        # tensorboard3 = TensorBoard(log_dir=log_dir_cpc, write_graph=True, profile_batch=0)
+        cpc_tensorboard = TensorBoard(log_dir=log_dir_cpc, write_graph=True, profile_batch=0)
 
         # Train the model
-        # Keep same data (train/validation) for the three models
-        x_train, x_val, y_train, y_val = train_test_split(self.x_train, self.y_train, test_size=0.3, random_state=48)
-        # Create dummy prediction so that Keras does not raise an error for wrong dimension
-        y_train_dummy = np.random.rand(y_train.shape[0], 1, 1)
-        y_val_dummy = np.random.rand(y_val.shape[0], 1, 1)
+        y_dummy = np.random.rand(self.y_train.shape[0], 1, 1)
 
-        # Train apc -> cpc -> convpc.
-        wait = 0
-        best_loss = np.Inf
+        if self.pretrain_apc:
+            self.apc_model.fit(x=self.x_train, y=self.y_train, epochs=self.epochs, batch_size=self.batch_size,
+                               validation_split=0.3, callbacks=[early_stop, apc_tensorboard])
+            self.model.fit(x=self.x_train, y=[y_dummy, self.y_train], epochs=self.epochs, batch_size=self.batch_size,
+                           validation_split=0.3, callbacks=[early_stop, tensorboard, checkpoint])
+        else:
+            # Train apc -> cpc -> convpc.
+            wait = 0
+            best_loss = np.Inf
 
-        for epoch in range(self.epochs):
-            print('Epoch: {}'.format(epoch + 1))
+            for epoch in range(self.epochs):
+                print('Epoch: {}'.format(epoch + 1))
 
-            apc_history = self.apc_model.fit(x=x_train, y=y_train, epochs=1, batch_size=self.batch_size,
-                                             validation_data=(x_val, y_val))
-            with train_apc_summary_writer.as_default():
-                tf.summary.scalar('apc_loss', apc_history.history['loss'][0], step=epoch)
-            with val_apc_summary_writer.as_default():
-                tf.summary.scalar('apc_loss', apc_history.history['val_loss'][0], step=epoch)
+                apc_history = self.apc_model.fit(x=self.x_train, y=self.y_train, epochs=1, batch_size=self.batch_size,
+                                                 validation_split=0.3)
+                with train_apc_summary_writer.as_default():
+                    tf.summary.scalar('apc_loss', apc_history.history['loss'][0], step=epoch)
+                with val_apc_summary_writer.as_default():
+                    tf.summary.scalar('apc_loss', apc_history.history['val_loss'][0], step=epoch)
 
-            cpc_history = self.cpc_model.fit(x=x_train, y=y_train_dummy, epochs=1, batch_size=self.batch_size,
-                                             validation_data=(x_val, y_val_dummy))
+                cpc_history = self.cpc_model.fit(x=self.x_train, y=y_dummy, epochs=1, batch_size=self.batch_size,
+                                                 validation_split=0.3)
 
-            with train_cpc_summary_writer.as_default():
-                tf.summary.scalar('cpc_loss', cpc_history.history['loss'][0], step=epoch)
-            with val_cpc_summary_writer.as_default():
-                tf.summary.scalar('cpc_loss', cpc_history.history['val_loss'][0], step=epoch)
+                with train_cpc_summary_writer.as_default():
+                    tf.summary.scalar('cpc_loss', cpc_history.history['loss'][0], step=epoch)
+                with val_cpc_summary_writer.as_default():
+                    tf.summary.scalar('cpc_loss', cpc_history.history['val_loss'][0], step=epoch)
 
-            model_history = self.model.fit(x=x_train, y=[y_train_dummy, y_train], epochs=1, batch_size=self.batch_size,
-                                           validation_data=(x_val,
-                                                            {'Contrastive_Loss': y_val_dummy, 'apc_posnet': y_val}))
-            with train_model_summary_writer.as_default():
-                tf.summary.scalar('loss', model_history.history['loss'][0], step=epoch)
-                tf.summary.scalar('apc_loss', model_history.history['apc_posnet_loss'][0], step=epoch)
-                tf.summary.scalar('cpc_loss', model_history.history['Contrastive_Loss_loss'][0], step=epoch)
+                model_history = self.model.fit(x=self.x_train, y=[y_dummy, self.y_train], epochs=1,
+                                               batch_size=self.batch_size, validation_split=0.3)
+                with train_model_summary_writer.as_default():
+                    tf.summary.scalar('loss', model_history.history['loss'][0], step=epoch)
+                    tf.summary.scalar('apc_loss', model_history.history['apc_posnet_loss'][0], step=epoch)
+                    tf.summary.scalar('cpc_loss', model_history.history['Contrastive_Loss_loss'][0], step=epoch)
 
-            val_loss = model_history.history['val_loss'][0]
-            with val_model_summary_writer.as_default():
-                tf.summary.scalar('loss', val_loss,step=epoch)
-                tf.summary.scalar('apc_loss', model_history.history['val_apc_posnet_loss'][0], step=epoch)
-                tf.summary.scalar('cpc_loss', model_history.history['val_Contrastive_Loss_loss'][0], step=epoch)
+                val_loss = model_history.history['val_loss'][0]
+                with val_model_summary_writer.as_default():
+                    tf.summary.scalar('loss', val_loss,step=epoch)
+                    tf.summary.scalar('apc_loss', model_history.history['val_apc_posnet_loss'][0], step=epoch)
+                    tf.summary.scalar('cpc_loss', model_history.history['val_Contrastive_Loss_loss'][0], step=epoch)
 
-            #  Early Stopping and Checkpoint
-            if val_loss < best_loss:
-                wait = 0
+                #  Early Stopping and Checkpoint
+                if val_loss < best_loss:
+                    wait = 0
 
-                print('\nEpoch %05d: %s improved from %0.5f to %0.5f, saving model to %s' %
-                      (epoch+1, 'val_loss', best_loss, val_loss, model_file_name + '.h5'))
-                self.model.save(model_file_name + '.h5', overwrite=True)
-                best_loss = val_loss
-            else:
-                wait += 1
+                    print('\nEpoch %05d: %s improved from %0.5f to %0.5f, saving model to %s' %
+                          (epoch+1, 'val_loss', best_loss, val_loss, model_file_name + '.h5'))
+                    self.model.save(model_file_name + '.h5', overwrite=True)
+                    best_loss = val_loss
+                else:
+                    wait += 1
 
-                print('\nEpoch %05d: %s did not improve from %0.5f' % (epoch + 1, 'val_loss', best_loss))
+                    print('\nEpoch %05d: %s did not improve from %0.5f' % (epoch + 1, 'val_loss', best_loss))
 
-                if wait >= self.early_stop_epochs:
-                    print('\nEpoch %05d: early stopping' % (epoch + 1))
-                    break
+                    if wait >= self.early_stop_epochs:
+                        print('\nEpoch %05d: early stopping' % (epoch + 1))
+                        break
 
         return self.model
 

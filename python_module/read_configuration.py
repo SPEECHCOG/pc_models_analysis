@@ -59,7 +59,9 @@ CONVPC_CONFIG = [
     ("cpc_neg", int, 10, False),
     ("cpc_steps", int, 12, False),
     ("dropout", float, 0.2, False),
-    ("learning_rate", float, 0.001, False)
+    ("learning_rate", float, 0.001, False),
+    ("pretrain_apc", bool, False, False),
+    ("apc_learning_rate", float, 0.0001, False)
 ]
 
 CPC_CONFIG = [
