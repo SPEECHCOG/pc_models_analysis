@@ -13,6 +13,7 @@ import numpy as np
 import tensorflow as tf
 from keras import backend as K
 from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from tensorflow.keras.layers import Input, Conv1D, Layer, Dense, Dropout, Add, Conv2DTranspose
 from tensorflow.keras.models import Model, load_model
@@ -431,10 +432,35 @@ class ConvPCModel(ModelBase):
         contrastive_loss = ContrastiveLoss(self.cpc_units, self.cpc_neg, self.cpc_steps)
         contrastive_loss_output = contrastive_loss([apc_features, cpc_output])
 
-        # Model
+        # Configuration of learning process
+        adam = Adam(lr=self.learning_rate)
+
+        # Models
+        self.apc_model = Model(input_feats, autoencoder_prediction)
+        self.apc_model.compile(optimizer=adam, loss='mean_absolute_error')
+
+        # Freeze APC and Prenet layers
+        for layer in prenet_block.layers:
+            layer.trainable = False
+        for layer in apc_block.layers:
+            layer.trainable = False
+
+        self.cpc_model = Model(input_feats, contrastive_loss_output)
+        self.cpc_model.compile(optimizer=adam, loss=lambda y_true, y_pred: y_pred)
+
+        # Trainable APC and Prenet again
+        for layer in prenet_block.layers:
+            layer.trainable = True
+        for layer in apc_block.layers:
+            layer.trainable = True
+
         self.model = Model(input_feats, [contrastive_loss_output, autoencoder_prediction])
+        self.model.compile(optimizer=adam, loss={'Contrastive_Loss': lambda y_true, y_pred: y_pred,
+                                                 'apc_posnet': 'mean_absolute_error'})
 
         print(self.model.summary())
+        print(self.apc_model.summary())
+        print(self.cpc_model.summary())
 
     def load_prediction_configuration(self, config):
         """
@@ -453,11 +479,6 @@ class ConvPCModel(ModelBase):
         :return: a trained model saved on disk
         """
 
-        # Configuration of learning process
-        adam = Adam(lr=self.learning_rate)
-        self.model.compile(optimizer=adam, loss={'Contrastive_Loss': lambda y_true, y_pred: y_pred,
-                                                 'apc_posnet': 'mean_absolute_error'})
-
         # Model file name for checkpoint and log
         model_file_name = os.path.join(self.full_path_output_folder, self.language +
                                        datetime.now().strftime("_%Y_%m_%d-%H_%M"))
@@ -471,16 +492,94 @@ class ConvPCModel(ModelBase):
         checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min',
                                      verbose=1, save_best_only=True)
 
-        # Tensorboard
-        log_dir = os.path.join(self.logs_folder_path, self.language, datetime.now().strftime("%Y_%m_%d-%H_%M"))
-        tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
+        # "Manual" Tensorboard
+        log_dir_model = os.path.join(self.logs_folder_path, 'model', self.language,
+                                     datetime.now().strftime("%Y_%m_%d-%H_%M"))
+
+        # Graph
+        tensorboard_graph = TensorBoard(log_dir_model)
+        tensorboard_graph.set_model(self.model)
+
+        train_model_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_model, 'train'))
+        val_model_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_model, 'validation'))
+
+        # tensorboard = TensorBoard(log_dir=log_dir_model, write_graph=True, profile_batch=0)
+
+        log_dir_apc = os.path.join(self.logs_folder_path, 'apc_model', self.language,
+                                   datetime.now().strftime("%Y_%m_%d-%H_%M"))
+
+        train_apc_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_apc, 'train'))
+        val_apc_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_apc, 'validation'))
+
+        # tensorboard2 = TensorBoard(log_dir=log_dir_apc, write_graph=True, profile_batch=0)
+
+        log_dir_cpc = os.path.join(self.logs_folder_path, 'cpc_model', self.language,
+                                   datetime.now().strftime("%Y_%m_%d-%H_%M"))
+
+        train_cpc_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_cpc, 'train'))
+        val_cpc_summary_writer = tf.summary.create_file_writer(os.path.join(log_dir_cpc, 'validation'))
+
+        # tensorboard3 = TensorBoard(log_dir=log_dir_cpc, write_graph=True, profile_batch=0)
 
         # Train the model
+        # Keep same data (train/validation) for the three models
+        x_train, x_val, y_train, y_val = train_test_split(self.x_train, self.y_train, test_size=0.3, random_state=48)
         # Create dummy prediction so that Keras does not raise an error for wrong dimension
-        y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
+        y_train_dummy = np.random.rand(y_train.shape[0], 1, 1)
+        y_val_dummy = np.random.rand(y_val.shape[0], 1, 1)
 
-        self.model.fit(x=self.x_train, y=[y_dummy, self.y_train], epochs=self.epochs, batch_size=self.batch_size,
-                       validation_split=0.3, callbacks=[tensorboard, early_stop, checkpoint])
+        # Train apc -> cpc -> convpc.
+        wait = 0
+        best_loss = np.Inf
+
+        for epoch in range(self.epochs):
+            print('Epoch: {}'.format(epoch + 1))
+
+            apc_history = self.apc_model.fit(x=x_train, y=y_train, epochs=1, batch_size=self.batch_size,
+                                             validation_data=(x_val, y_val))
+            with train_apc_summary_writer.as_default():
+                tf.summary.scalar('apc_loss', apc_history.history['loss'][0], step=epoch)
+            with val_apc_summary_writer.as_default():
+                tf.summary.scalar('apc_loss', apc_history.history['val_loss'][0], step=epoch)
+
+            cpc_history = self.cpc_model.fit(x=x_train, y=y_train_dummy, epochs=1, batch_size=self.batch_size,
+                                             validation_data=(x_val, y_val_dummy))
+
+            with train_cpc_summary_writer.as_default():
+                tf.summary.scalar('cpc_loss', cpc_history.history['loss'][0], step=epoch)
+            with val_cpc_summary_writer.as_default():
+                tf.summary.scalar('cpc_loss', cpc_history.history['val_loss'][0], step=epoch)
+
+            model_history = self.model.fit(x=x_train, y=[y_train_dummy, y_train], epochs=1, batch_size=self.batch_size,
+                                           validation_data=(x_val,
+                                                            {'Contrastive_Loss': y_val_dummy, 'apc_posnet': y_val}))
+            with train_model_summary_writer.as_default():
+                tf.summary.scalar('loss', model_history.history['loss'][0], step=epoch)
+                tf.summary.scalar('apc_loss', model_history.history['apc_posnet_loss'][0], step=epoch)
+                tf.summary.scalar('cpc_loss', model_history.history['Contrastive_Loss_loss'][0], step=epoch)
+
+            val_loss = model_history.history['val_loss'][0]
+            with val_model_summary_writer.as_default():
+                tf.summary.scalar('loss', val_loss,step=epoch)
+                tf.summary.scalar('apc_loss', model_history.history['val_apc_posnet_loss'][0], step=epoch)
+                tf.summary.scalar('cpc_loss', model_history.history['val_Contrastive_Loss_loss'][0], step=epoch)
+
+            #  Early Stopping and Checkpoint
+            if val_loss < best_loss:
+                wait = 0
+
+                print('\nEpoch %05d: %s improved from %0.5f to %0.5f, saving model to %s' %
+                      (epoch+1, 'val_loss', best_loss, val_loss, model_file_name + '.h5'))
+                self.model.save(model_file_name + '.h5', overwrite=True)
+                best_loss = val_loss
+            else:
+                wait += 1
+
+                print('\nEpoch %05d: %s did not improve from %0.5f' % (epoch + 1, 'val_loss', best_loss))
+
+                if wait >= self.early_stop_epochs:
+                    print('\nEpoch %05d: early stopping' % (epoch + 1))
+                    break
 
         return self.model
 
