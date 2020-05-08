@@ -60,9 +60,10 @@ if __name__ == '__main__':
                                                  '<language_code>.\nLanguage code:\n\t1: English\n\t2:French\n\t3:'
                                                  'Mandarin\n\t4:Lang1(German)\n\t5:Lang2(Wolof)')
     parser.add_argument('--lang_code', type=int, default=3)
+    parser.add_argument('--config', type=str, default='./config.json')
     args = parser.parse_args()
 
-    new_config_file = change_configuration_file(args.lang_code)
+    new_config_file = change_configuration_file(args.lang_code, json_path=args.config)
     # Train model
     train(new_config_file)
     os.remove(new_config_file)
