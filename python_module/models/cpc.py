@@ -11,7 +11,7 @@ import tensorflow as tf
 from keras import backend as K
 from sklearn.decomposition import PCA
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, Callback, ReduceLROnPlateau
-from tensorflow.keras.layers import Dropout, Conv1D, Input, GRU
+from tensorflow.keras.layers import Dropout, Conv1D, Input, GRU, Dense
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
@@ -83,11 +83,11 @@ class FeatureEncoder(Block):
         self.layers = []
         with K.name_scope(name):
             for i in range(n_layers):
-                self.layers.append(Conv1D(units, 3, padding='causal', activation='relu', name='conv_layer_'+str(i)))
+                self.layers.append(Dense(units, activation='relu', name='dense_layer_' + str(i)))
                 if i == n_layers - 1:
                     self.layers.append(Dropout(dropout, name='cpc_latent_layer'))
                 else:
-                    self.layers.append(Dropout(dropout, name='conv_dropout_' + str(i)))
+                    self.layers.append(Dropout(dropout, name='dense_dropout_' + str(i)))
 
     def call(self, inputs, **kwargs):
         """
@@ -135,7 +135,7 @@ class CPCModel(ModelBase):
         super(CPCModel, self).load_prediction_configuration(config)
         self.use_pca = config['use_pca']
 
-    def load_training_configuration(self, config, x_train, y_train):
+    def load_training_configuration(self, config, x_train, y_train, x_val=None, y_val=None):
         """
         It instantiates the model architecture using the parameters from the configuration file.
         :param config: Dictionary with the configuration parameters
@@ -143,7 +143,7 @@ class CPCModel(ModelBase):
         :param y_train: Output training data (not used in this model)
         :return: an instance will have the parameters from configuration and the model architecture
         """
-        super(CPCModel, self).load_training_configuration(config, x_train, y_train)
+        super(CPCModel, self).load_training_configuration(config, x_train, y_train, x_val, y_val)
 
         # Model architecture: Feature_Encoder -> Dropout -> GRU -> Dropout
         cpc_config = config['model']['cpc']
@@ -200,31 +200,63 @@ class CPCModel(ModelBase):
         adam = Adam(lr=self.learning_rate)
         self.model.compile(optimizer=adam, loss={'Contrastive_Loss': lambda y_true, y_pred: y_pred})
 
-        # Model file name for checkpoint and log
-        model_file_name = os.path.join(self.full_path_output_folder, self.language +
-                                       datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+        callbacks = []
+
+        if self.statistical_analysis:
+            model_full_path = os.path.join(self.full_path_output_folder,
+                                           self.configuration['statistical_analysis']['system'],
+                                           str(self.configuration['statistical_analysis']['model_id']))
+            os.makedirs(model_full_path, exist_ok=True)
+            model_file_name = os.path.join(self.full_path_output_folder,
+                                           self.configuration['statistical_analysis']['system'],
+                                           str(self.configuration['statistical_analysis']['model_id']),
+                                           self.language +
+                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+            model_file_name_txt = os.path.join(self.full_path_output_folder,
+                                               self.configuration['statistical_analysis']['system'],
+                                               self.language +
+                                               datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+        else:
+            # Model file name for checkpoint and log
+            model_file_name = os.path.join(self.full_path_output_folder, self.language +
+                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+            model_file_name_txt = model_file_name
 
         # log
-        self.write_log(model_file_name + '.txt')
+        self.write_log(model_file_name_txt + '.txt')
 
         # Callbacks for training
         # Adding early stop based on validation loss and saving best model for later prediction
         # ratio_early_stop = RatioEarlyStopping(ratio=0.98, verbose=1, patience=self.early_stop_epochs)
-        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
-        # lr_on_plateau = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, verbose=1, mode='min')
-        checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min',
+        if self.statistical_analysis:
+            checkpoint = ModelCheckpoint(model_file_name + '-{epoch:d}_{val_loss:.6f}' + '.h5', monitor='val_loss',
+                                         mode='min', verbose=1,
+                                         period=self.configuration['statistical_analysis']['period'])
+            callbacks.append(checkpoint)
+        else:
+            early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
+            # lr_on_plateau = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, verbose=1, mode='min')
+            checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min',
                                      verbose=1, save_best_only=True)
+            callbacks.append(early_stop)
+            callbacks.append(checkpoint)
 
         # Tensorboard
         log_dir = os.path.join(self.logs_folder_path, self.language, datetime.now().strftime("%Y_%m_%d-%H_%M"))
         tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
+        callbacks.append(tensorboard)
 
         # Train the model
         # Create dummy prediction so that Keras does not raise an error for wrong dimension
         y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
 
-        self.model.fit(x=self.x_train, y=y_dummy, epochs=self.epochs, batch_size=self.batch_size,
-                       validation_split=0.3, callbacks=[tensorboard, early_stop, checkpoint])
+        if self.x_val is not None:
+            y_val_dummy = np.random.rand(self.x_val.shape[0], 1, 1)
+            self.model.fit(x=self.x_train, y=y_dummy, epochs=self.epochs, batch_size=self.batch_size,
+                           validation_data=(self.x_val, y_val_dummy), callbacks=callbacks)
+        else:
+            self.model.fit(x=self.x_train, y=y_dummy, epochs=self.epochs, batch_size=self.batch_size,
+                           validation_split=0.3, callbacks=callbacks)
 
         return self.model
 

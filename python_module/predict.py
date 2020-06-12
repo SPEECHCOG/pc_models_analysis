@@ -7,9 +7,6 @@ import argparse
 import sys
 
 from models.apc import APCModel
-from models.autoencoder import Autoencoder
-from models.convpc import ConvPCModel
-from models.convpc_2 import ConvPC2Model
 from models.cpc import CPCModel
 from read_configuration import read_configuration_json, load_test_set
 
@@ -26,14 +23,8 @@ def predict(config_path):
     # Use correct model
     model_type = config['model_type']
 
-    if model_type == 'autoencoder':
-        model = Autoencoder()
-    elif model_type == 'apc':
+    if model_type == 'apc':
         model = APCModel()
-    elif model_type == 'convpc':
-        model = ConvPCModel()
-    elif model_type == 'convpc2':
-        model = ConvPC2Model()
     elif model_type == 'cpc':
         model = CPCModel()
     else:
@@ -42,7 +33,7 @@ def predict(config_path):
     model.load_prediction_configuration(config)
 
     for duration in config['durations']:
-        x_test, x_test_ind = load_test_set(config['test_set'], duration)
+        x_test, x_test_ind = load_test_set(config['test_set'], duration, config['features_type'])
         model.predict(x_test, x_test_ind, duration)
 
     print('Predictions for ' + config['language'] + ' with durations (' + ', '.join(config['durations']) + ') are '

@@ -1,7 +1,6 @@
 # Python module
 
-This module contains the different neural models
-trained for the challenge.
+This module contains the APC and CPC models. 
 
 The package models have ModelBase abstract class from which
 all the models should inherit so that we can train and predict

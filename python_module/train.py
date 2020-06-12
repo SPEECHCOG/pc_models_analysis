@@ -6,12 +6,9 @@ It trains a model according to the configuration given
 import argparse
 import sys
 
-from models.autoencoder import Autoencoder
 from models.apc import APCModel
-from models.convpc import ConvPCModel
-from models.convpc_2 import ConvPC2Model
 from models.cpc import CPCModel
-from read_configuration import read_configuration_json, load_training_features
+from read_configuration import read_configuration_json, load_training_features, load_python_training_features
 
 
 def train(config_path):
@@ -25,25 +22,28 @@ def train(config_path):
     config = read_configuration_json(config_path, True, False)['training']
 
     # Obtain input/output features to train the model
-    x_train, y_train = load_training_features(config['train_in'], config['train_out'])
+    if config['features_type'] == 'matlab':
+        x_train, y_train = load_training_features(config['train_in'], config['train_out'])
+        x_val, y_val = None, None
+    else:
+        input_feats = config['input_features']
+        shift = (config['model']['type'] == 'apc' or config['model']['type'] == 'convpc')
+        x_train, x_val, y_train, y_val = load_python_training_features(input_feats['train'],
+                                                                       input_feats['validation'],
+                                                                       steps=input_feats['shift'],
+                                                                       shift=shift)
 
     # Use correct model
     model_type = config['model']['type']
 
-    if model_type == 'autoencoder':
-        model = Autoencoder()
-    elif model_type == 'apc':
+    if model_type == 'apc':
         model = APCModel()
-    elif model_type == 'convpc':
-        model = ConvPCModel()
-    elif model_type == 'convpc2':
-        model = ConvPC2Model()
     elif model_type == 'cpc':
         model = CPCModel()
     else:
         raise Exception('The model type "%s" is not supported' % model_type)
 
-    model.load_training_configuration(config, x_train, y_train)
+    model.load_training_configuration(config, x_train, y_train, x_val, y_val)
     model.train()
 
     print('Training of model "%s" finished' % model_type)

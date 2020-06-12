@@ -1,27 +1,14 @@
-# Zero-Resource Speech Challenge 2020
-
-## Pipeline
-
-![Pipeline](workflow.png)
-
------
-
-### MatLab module
-
-* feature extraction
-* creation of submission folder
+# Analysis of Predictive Coding Models for Phonemic Representation Learning in Small Datasets
 
 ### Python module
 
-* model training
-* prediction of test data
+This folder includes: 
+* the APC and CPC models' implementation
+* Script to obtain the scatter plots and correlation coefficients
 
------
+### Data
+This folder includes the data of the different experiments plus the scatter plots
 
-### Evaluations
 
-A bash script loads the predictions per model and type of feature extraction method into the submission folder, 
-and uses the conda command for evaluation. To do so, it dynamically creates symbolic link from the predictions folder 
-to the submission file.
 
  

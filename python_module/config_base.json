@@ -2,6 +2,18 @@
   "training": {
     "train_in": ["path_to_input_features_training_set", "variable_name"],
     "train_out": ["path_to_output_features_training_set", "variable_name"],
+    "input_features": {
+      "train": "path",
+      "validation": "path",
+      "shift": 5
+    },
+    "statistical_analysis": {
+      "system": "system_name",
+      "model_id": 1,
+      "period": 10
+    },
+    "dataset_percentage": 100,
+    "features_type": "python|matlab",
     "output_path": "path_where_to_save_the_trained_model",
     "features_folder_name": "name_of_features_folder",
     "language": "mandarin",
@@ -66,6 +78,26 @@
     "window_shift": 0.01,
     "files_limit": 10,
     "use_pca": true,
-    "save_matlab": true
+    "save_matlab": true,
+    "features_type": "python|matlab"
+  },
+  "feature_extraction": {
+    "data_path": "path_where_audio_data_is_saved",
+    "features_path": "path_where_features_will_be_saved",
+    "languages": ["english", "french", "mandarin"],
+    "durations": ["1", "10", "120"],
+    "method": {
+      "name": "mfcc",
+      "window_length": 0.025,
+      "window_shift": 0.01,
+      "deltas": true,
+      "deltas_deltas": true,
+      "cmvn": true,
+      "coefficients": 13,
+      "sample_length": 200
+    },
+    "mode": "diff",
+    "train": true,
+    "test": true
   }
 }

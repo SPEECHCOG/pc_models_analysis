@@ -68,26 +68,58 @@ class APCModel(ModelBase):
         adam = Adam(lr=self.learning_rate)
         self.model.compile(optimizer=adam, loss='mean_absolute_error')
 
-        # Model file name for checkpoint and log
-        model_file_name = os.path.join(self.full_path_output_folder, self.language +
-                                       datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+        callbacks = []
+
+        if self.statistical_analysis:
+            model_full_path = os.path.join(self.full_path_output_folder,
+                                                        self.configuration['statistical_analysis']['system'],
+                                                        str(self.configuration['statistical_analysis']['model_id']))
+            os.makedirs(model_full_path, exist_ok=True)
+            model_file_name = os.path.join(self.full_path_output_folder,
+                                           self.configuration['statistical_analysis']['system'],
+                                           str(self.configuration['statistical_analysis']['model_id']),
+                                           self.language +
+                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+            model_file_name_txt = os.path.join(self.full_path_output_folder,
+                                           self.configuration['statistical_analysis']['system'],
+                                           self.language +
+                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+        else:
+            # Model file name for checkpoint and log
+            model_file_name = os.path.join(self.full_path_output_folder, self.language +
+                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
+            model_file_name_txt = model_file_name
 
         # log
-        self.write_log(model_file_name + '.txt')
+        self.write_log(model_file_name_txt + '.txt')
 
         # Callbacks for training
         # Adding early stop based on validation loss and saving best model for later prediction
-        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
-        checkpoint = ModelCheckpoint( model_file_name + '.h5', monitor='val_loss', mode='min',
-                                      verbose=1, save_best_only=True)
+        if self.statistical_analysis:
+            checkpoint = ModelCheckpoint(model_file_name + '-{epoch:d}_{val_loss:.6f}' + '.h5', monitor='val_loss',
+                                         mode='min', verbose=1,
+                                         period=self.configuration['statistical_analysis']['period'])
+            callbacks.append(checkpoint)
+        else:
+            early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
+            checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min', verbose=1,
+                                         save_best_only=True)
+            callbacks.append(early_stop)
+            callbacks.append(checkpoint)
 
         # Tensorboard
         log_dir = os.path.join(self.logs_folder_path, self.language, datetime.now().strftime("%Y_%m_%d-%H_%M"))
         tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
+        callbacks.append(tensorboard)
+
 
         # Train the model
-        self.model.fit(self.x_train, self.y_train, epochs=self.epochs, batch_size=self.batch_size, validation_split=0.3,
-                       callbacks=[tensorboard, early_stop, checkpoint])
+        if self.x_val is not None:
+            self.model.fit(self.x_train, self.y_train, epochs=self.epochs, batch_size=self.batch_size,
+                           validation_data=(self.x_val, self.y_val), callbacks=callbacks)
+        else:
+            self.model.fit(self.x_train, self.y_train, epochs=self.epochs, batch_size=self.batch_size,
+                           validation_split=0.3, callbacks=callbacks)
 
         return self.model
 
@@ -148,7 +180,7 @@ class APCModel(ModelBase):
 
         print('Predictions of {0} with duration {1}s: {2} files'.format(self.language, duration, total_files))
 
-    def load_training_configuration(self, config, x_train, y_train):
+    def load_training_configuration(self, config, x_train, y_train, x_val=None, y_val=None):
         """
         It loads configuration from dictionary, and instantiates the model architecture
         :param config: a dictionary with the configuration parameters for training
@@ -156,7 +188,7 @@ class APCModel(ModelBase):
         :param y_train: a numpy array with the output features
         :return: an instance will have the parameters from configuration and the model architecture
         """
-        super(APCModel, self).load_training_configuration(config, x_train, y_train)
+        super(APCModel, self).load_training_configuration(config, x_train, y_train, x_val, y_val)
 
         # Model architecture: PreNet (stacked linear layers with ReLU activation and dropout) ->
         # APC (multi-layer GRU network) -> Postnet(Conv1D this is only used during training)

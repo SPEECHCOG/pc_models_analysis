@@ -15,7 +15,7 @@ from models.create_prediction_files import create_prediction_files
 
 class ModelBase(ABC):
     @abstractmethod
-    def load_training_configuration(self, config, x_train, y_train):
+    def load_training_configuration(self, config, x_train, y_train, x_val=None, y_val=None):
         """
         Loads the configuration parameters from the configuration dictionary, and the input/output features for
         training
@@ -38,8 +38,26 @@ class ModelBase(ABC):
         self.output_folder = config['output_path']
         self.features_folder_name = config['features_folder_name']
         self.language = config['language']
-        self.x_train = x_train
-        self.y_train = y_train
+
+        if config['dataset_percentage'] != 100:
+            n_samples_tr = x_train.shape[0]
+            n_samples_tr = int(n_samples_tr * config['dataset_percentage'] / 100)
+            self.x_train = x_train[:n_samples_tr, :, :]
+            self.y_train = y_train[:n_samples_tr, :, :]
+            self.x_val = x_val
+            self.y_val = y_val
+            if x_val is not None:
+                n_samples_vl = x_val.shape[0]
+                n_samples_vl = int(n_samples_vl * config['dataset_percentage'] / 100)
+                self.x_val = x_val[:n_samples_vl, :, :]
+                self.y_val = y_val[:n_samples_vl, :, :]
+        else:
+            self.x_train = x_train
+            self.y_train = y_train
+            self.x_val = x_val
+            self.y_val = y_val
+
+        self.statistical_analysis = (config['statistical_analysis'] is not None)
 
         # Create folder structure where to save the model
         self.full_path_output_folder = os.path.join(self.output_folder, self.name, self.features_folder_name)
