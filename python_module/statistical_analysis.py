@@ -31,7 +31,8 @@ def get_val_epoch_pairs(folder, language):
 def read_abx_json(path, language):
     with open(path) as f:
         measures = json.load(f)['2017-track1'][language]['1s']
-    return (measures['across'], measures['within'])
+
+    return measures['across'], measures['within']
 
 
 def get_abx_epoch_pairs(folder, language, series):
@@ -96,8 +97,8 @@ def get_data_series(models_folder, eval_folder, language, model_name, system=Non
     return data
 
 
-def get_scatter_plots(data, x_idx, y_idx, file_name, title=None, system=None):
-    colours = ['#1167B1', '#B73229']
+def get_scatter_plot(data, x_idx, y_idx, file_name, system=None, colour_idx=None, x_label=None, y_label=None):
+    colours = ['#1167B1', '#B73229', '#2A9DF4', '#F66257', '#FF8303']
     if system is not None:
         systems = [system]
     else:
@@ -105,8 +106,10 @@ def get_scatter_plots(data, x_idx, y_idx, file_name, title=None, system=None):
 
     for system in systems:
         for series in range(1, len(data[system]) + 1):
-            colour = '#1167B1' if system == 'mix' else '#B73229'
-            # colour = colours[series-1]
+            if colour_idx is None:
+                colour = '#1167B1' if system == 'mix' else '#B73229'
+            else:
+                colour = colours[colour_idx]
             marker = ['+', '.', '*']
             alpha = [1, 0.8, 0.4]
             pyplot.scatter([x[x_idx] for x in data[system][series]], [x[y_idx] for x in data[system][series]],
@@ -114,109 +117,51 @@ def get_scatter_plots(data, x_idx, y_idx, file_name, title=None, system=None):
 
     pyplot.rcParams['legend.fontsize'] = 11
     pyplot.grid(True, which='both', linestyle='--')
-
     if system is None:
         mix = patches.Patch(color='#1167B1', label='Split B')
         diff = patches.Patch(color='#B73229', label='Split A')
         pyplot.legend(handles=[mix, diff])
 
-    labels = {0: 'Epoch', 1: 'Validation loss (InfoNCE)', 2: 'ABX across-speaker', 3: 'ABX within-speaker'}
-    pyplot.ylabel(labels[y_idx], fontsize=11)
-    pyplot.xlabel(labels[x_idx], fontsize=11)
-    if not title:
-        title = file_name.replace('_', ' ').replace('.png', '')
-    # pyplot.title(title)
-    # pyplot.show()
-    pyplot.tight_layout()
-    pyplot.savefig(os.path.join('../statistical_analysis', file_name))
-    pyplot.close('all')
-
-
-def get_scatter_plots_both(data, x_idx, file_name):
-    colours = ['#1167B1', '#B73229', '#2A9DF4', '#F66257']
-    for system in data:
-        for series in range(1, len(data[system]) + 1):
-            #colour = 'blue' if system == 'mix' else 'red'
-            marker = ['+', '.', '*']
-            alpha = [1, 0.8, 0.4]
-            colour = 0 if system == 'mix' else 1
-            pyplot.scatter([x[x_idx] for x in data[system][series]], [x[2] for x in data[system][series]],
-                           c=colours[colour], marker=marker[series-1], alpha=alpha[series-1])
-            pyplot.scatter([x[x_idx] for x in data[system][series]], [x[3] for x in data[system][series]],
-                           c=colours[colour + 2], marker=marker[series-1], alpha=alpha[series-1])
-
-    pyplot.rcParams['legend.fontsize'] = 11
-    pyplot.grid(True, which='both', linestyle='--')
-    mix = patches.Patch(color='#1167B1', label='Split B - ABX across-speaker')
-    mix2 = patches.Patch(color='#2A9DF4', label='Split B - ABX within-speaker')
-    diff = patches.Patch(color='#B73229', label='Split A - ABX across-speaker')
-    diff2 = patches.Patch(color='#F66257', label='Split A - ABX within-speaker')
-    pyplot.legend(handles=[mix, mix2, diff, diff2])
-
     labels = {0: 'Epoch', 1: 'Validation loss', 2: 'ABX across-speaker', 3: 'ABX within-speaker'}
-    pyplot.ylabel('ABX scores', fontsize=11)
-    pyplot.xlabel(labels[x_idx], fontsize=11)
-
-    # pyplot.show()
+    if x_label is None:
+        x_label = labels[x_idx]
+    if y_label is None:
+        y_label = labels[y_idx]
+    pyplot.ylabel(y_label, fontsize=11)
+    pyplot.xlabel(x_label, fontsize=11)
     pyplot.tight_layout()
     pyplot.savefig(os.path.join('../statistical_analysis', file_name))
     pyplot.close('all')
 
 
-def get_scatter_plots_two_lang(data, data2, x_idx, file_name, lang1, lang2):
+def get_scatter_plots_two_lang(data, data2, x_idx, file_name, lang1, lang2, x_label, y_label, plot_type):
     colours = ['#1167B1', '#B73229', '#2A9DF4', '#F66257']
-    for system in ['mix']:
-        for series in range(1, len(data[system]) + 1):
-            marker = ['+', '.', '*']
-            alpha = [1,0.8,0.4]
-            pyplot.scatter([x[x_idx] for x in data[system][series]], [x[2] for x in data[system][series]],
-                           c=colours[0], marker=marker[series-1], alpha=alpha[series-1])
-            pyplot.scatter([x[x_idx] for x in data[system][series]], [x[3] for x in data[system][series]],
-                           c=colours[2], marker=marker[series-1], alpha=alpha[series-1])
-            pyplot.scatter([x[x_idx] for x in data2[system][series]], [x[2] for x in data2[system][series]],
+    for series in range(1, len(data['mix']) + 1):
+        marker = ['+', '.', '*']
+        alpha = [1,0.8,0.4]
+        pyplot.scatter([x[x_idx] for x in data['mix'][series]], [x[2] for x in data['mix'][series]],
+                       c=colours[0], marker=marker[series-1], alpha=alpha[series-1])
+        pyplot.scatter([x[x_idx] for x in data['mix'][series]], [x[3] for x in data['mix'][series]],
+                       c=colours[2], marker=marker[series-1], alpha=alpha[series-1])
+        if plot_type != 'one' and data2 is not None:
+            pyplot.scatter([x[x_idx] for x in data2['mix'][series]], [x[2] for x in data2['mix'][series]],
                            c=colours[1], marker=marker[series-1], alpha=alpha[series-1])
-            pyplot.scatter([x[x_idx] for x in data2[system][series]], [x[3] for x in data2[system][series]],
+            pyplot.scatter([x[x_idx] for x in data2['mix'][series]], [x[3] for x in data2['mix'][series]],
                            c=colours[3], marker=marker[series-1], alpha=alpha[series-1])
 
     # Config
     pyplot.rcParams['legend.fontsize']=11
     pyplot.grid(True, which='both', linestyle='--')
 
-    mix = patches.Patch(color='#1167B1', label=lang1 + ' - ABX across-speaker')
-    mix2 = patches.Patch(color='#2A9DF4', label=lang1 + ' - ABX within-speaker')
-    diff = patches.Patch(color='#B73229', label=lang2 + ' - ABX across-speaker')
-    diff2 = patches.Patch(color='#F66257', label=lang2 + ' - ABX within-speaker')
-    pyplot.legend(handles=[mix, mix2, diff, diff2])
-    labels = {0: 'Epoch', 1: 'Validation loss', 2: 'ABX across-speaker', 3: 'ABX within-speaker'}
-    pyplot.ylabel('ABX scores', fontsize=11)
-    pyplot.xlabel(labels[x_idx], fontsize=11)
-    pyplot.tight_layout()
-    pyplot.savefig(os.path.join('../statistical_analysis', file_name), rasterized=True)
-    pyplot.close('all')
-
-
-def get_scatter_plots_one_lang(data, x_idx, file_name, lang1):
-    colours = ['#1167B1', '#B73229', '#2A9DF4', '#F66257']
-    colour_idx = 0 if lang1 == 'French' else 1
-    for system in ['mix']:
-        for series in range(1, len(data[system]) + 1):
-            marker = ['+', '.', '*']
-            alpha = [1, 0.8, 0.4]
-            pyplot.scatter([x[x_idx] for x in data[system][series]], [x[2] for x in data[system][series]],
-                           c=colours[0 + colour_idx], marker=marker[series-1], alpha=alpha[series-1])
-            pyplot.scatter([x[x_idx] for x in data[system][series]], [x[3] for x in data[system][series]],
-                           c=colours[2 + colour_idx], marker=marker[series-1], alpha=alpha[series-1])
-
-    pyplot.rcParams['legend.fontsize'] = 11
-    pyplot.grid(True, which='both', linestyle='--')
-
-    legend = patches.Patch(color='#1167B1', label=lang1 + ' - ABX across-speaker')
-    legend2 = patches.Patch(color='#2A9DF4', label=lang1 + ' - ABX within-speaker')
-    pyplot.legend(handles=[legend, legend2])
-
-    labels = {0: 'Epoch', 1: 'Validation loss (MAE)', 2: 'ABX across-speaker', 3: 'ABX within-speaker'}
-    pyplot.ylabel('ABX scores', fontsize=11)
-    pyplot.xlabel(labels[x_idx], fontsize=11)
+    patches_list = []
+    patches_list.append(patches.Patch(color='#1167B1', label=lang1 + ' - ABX across-speaker'))
+    patches_list.append(patches.Patch(color='#2A9DF4', label=lang1 + ' - ABX within-speaker'))
+    if plot_type != 'one' and data2 is not None:
+        patches_list.append(patches.Patch(color='#B73229', label=lang2 + ' - ABX across-speaker'))
+        patches_list.append(patches.Patch(color='#F66257', label=lang2 + ' - ABX within-speaker'))
+    pyplot.legend(handles=patches_list)
+    pyplot.ylabel(y_label, fontsize=11)
+    pyplot.xlabel(x_label, fontsize=11)
     pyplot.tight_layout()
     pyplot.savefig(os.path.join('../statistical_analysis', file_name))
     pyplot.close('all')
@@ -263,7 +208,6 @@ def statistical_analysis(data, alpha, language, model):
             means[system].append((epoch, np.mean(val_loss), np.mean(abx_across), np.mean(abx_within)))
 
             # Confidence Interval
-
             conf_interval[system][epoch] = {'val_loss': st.t.interval(0.95, len(val_loss), loc=np.mean(val_loss),
                                                                       scale=st.sem(val_loss)),
                                             'abx_across': st.t.interval(0.95, len(abx_across), loc=np.mean(abx_across),
@@ -298,6 +242,7 @@ def statistical_analysis(data, alpha, language, model):
             tmp_correlations['abx_across_s'].append(correlation_series[system][series]['abx_across']['spearman'][0])
             tmp_correlations['abx_within_p'].append(correlation_series[system][series]['abx_within']['pearson'][0])
             tmp_correlations['abx_within_s'].append(correlation_series[system][series]['abx_within']['spearman'][0])
+
         std[system]['total'] = {
             'abx_across': np.std(all_abx_across),
             'abx_within': np.std(all_abx_within)
@@ -369,11 +314,18 @@ def statistical_analysis(data, alpha, language, model):
 
     return analysis
 
-def analyse_change_ratio(data_file, language, model):
+
+def analyse_change_ratio(data_file, language, model, system=None, img_type='png'):
     figures = {}
+    colours = ['#1167B1', '#B73229', '#2A9DF4', '#F66257']
+    colour = 0 if language == 'French' else 1
+    marker = ['+', '.', '*']
+    alpha = [1, 0.8, 0.4]
     with open(data_file) as f:
         data = json.load(f)
-        for system in data:
+        systems = data.keys() if system is None else [system]
+
+        for system in systems:
             figures[system] = {}
             for series in data[system]:
                 figures[system][series] = []
@@ -390,34 +342,36 @@ def analyse_change_ratio(data_file, language, model):
     # plots
     for system in figures:
         for series in figures[system]:
-            pyplot.scatter([x for x in range(len(figures[system][series][0]))], figures[system][series][1], c='red')
-            pyplot.scatter([x for x in range(len(figures[system][series][0]))], figures[system][series][2], c='blue')
+            pyplot.scatter([x for x in range(len(figures[system][series][0]))], figures[system][series][1],
+                           c=colours[colour], marker=marker[int(series) - 1], alpha=alpha[int(series) - 1])
+            pyplot.scatter([x for x in range(len(figures[system][series][0]))], figures[system][series][2],
+                           c=colours[colour + 2], marker=marker[int(series) - 1], alpha=alpha[int(series) - 1])
 
-    across = patches.Patch(color='red', label='across-speaker')
-    within = patches.Patch(color='blue', label='within-speaker')
+    across = patches.Patch(color=colours[colour], label='ABX across-speaker')
+    within = patches.Patch(color=colours[colour + 2], label='ABX within-speaker')
     pyplot.legend(handles=[across, within])
-    pyplot.xlabel('steps')
-    pyplot.ylabel('ratio val-loss')
+    pyplot.xlabel('Steps')
+    pyplot.ylabel('Ratio validation loss')
     pyplot.title('Ratio changes ' + model + ' ' + language)
-
-    # pyplot.show()
-    pyplot.savefig(data_file.replace('data', 'ratio_changes_steps').replace('json', 'png'))
+    pyplot.tight_layout()
+    pyplot.savefig(data_file.replace('data', 'ratio_changes_steps').replace('json', img_type))
     pyplot.close('all')
 
     for system in figures:
         for series in figures[system]:
-            pyplot.scatter(figures[system][series][0], figures[system][series][1], c='red')
-            pyplot.scatter(figures[system][series][0], figures[system][series][2], c='blue')
+            pyplot.scatter(figures[system][series][0], figures[system][series][1],
+                           c=colours[colour], marker=marker[int(series) - 1], alpha=alpha[int(series) - 1])
+            pyplot.scatter(figures[system][series][0], figures[system][series][2],
+                           c=colours[colour + 2], marker=marker[int(series) - 1], alpha=alpha[int(series) - 1])
 
-    across = patches.Patch(color='red', label='across-speaker')
-    within = patches.Patch(color='blue', label='within-speaker')
+    across = patches.Patch(color=colours[colour], label='across-speaker')
+    within = patches.Patch(color=colours[colour + 2], label='within-speaker')
     pyplot.legend(handles=[across, within])
-    pyplot.xlabel('ratio val-loss')
-    pyplot.ylabel('ratio ABX scores')
+    pyplot.xlabel('Ratio validation loss')
+    pyplot.ylabel('Ratio ABX scores')
     pyplot.title('Ratio changes ' + model + ' ' + language)
-
-    # pyplot.show()
-    pyplot.savefig(data_file.replace('data', 'ratio_changes').replace('json', 'png'))
+    pyplot.tight_layout()
+    pyplot.savefig(data_file.replace('data', 'ratio_changes').replace('json', img_type))
     pyplot.close('all')
 
     # correlations
@@ -435,16 +389,62 @@ def analyse_change_ratio(data_file, language, model):
     with open(data_file.replace('data', 'ratio_changes'), 'w') as f:
         json.dump(correlations, f, indent=2)
 
-# analyse_change_ratio('../statistical_analysis/cpc_2_french_data.json', 'French', 'CPC 2')
 
-data = get_data_series('../models/stats/cpc/', '../evaluation/evaluation_stat/cpc', 'french', 'cpc')
-data2 = get_data_series('../models/stats/cpc/', '../evaluation/evaluation_stat/cpc', 'mandarin', 'cpc')
-# 0:epoch 1:val-loss 2:ABX across-spkr 3:ABX within-spkr
-#get_scatter_plots_one_lang(data, 1, 'cpc_french_abx_scores.eps', 'French')
-# get_scatter_plots_two_lang(data, data2, 0, 'apc_epoch_abx_scores.eps', 'French', 'Mandarin')
-# get_scatter_plots_both(data, 0, 'cpc_2_10_french_abx_scores.eps')
-get_scatter_plots(data, 0, 2, 'cpc_french_epoch_across_speaker.eps', 'CPC French', 'mix')
-# statistical_analysis(data2, 0.95, 'mandarin', 'cpc_2')
-# statistical_analysis(data, 0.95, 'french', 'cpc_2')
+# Generate data and scatter plots.
+models = ['apc', 'apc_2', 'cpc', 'cpc_2', 'cpc_2_10']
+axes = ['epoch', 'val_loss', 'across_speaker', 'within_speaker']
+losses = ['(MAE)', '(InfoNCE)']
+axes_labels = ['Epoch', 'Validation Loss', 'ABX across-speaker', 'ABX within-speaker', 'ABX scores']
 
-            
+model_path = '../models/stats/'
+eval_path = '../evaluation/evaluation_stat/'
+
+img_type = 'eps'
+
+for model in models:
+    total_series = 3 if model.startswith('apc') or model == 'cpc' else 2
+    final_model_path = model_path + model
+    final_eval_path = eval_path + model
+    loss = losses[0] if model.startswith('apc') else losses[1]
+    data_fr = get_data_series(final_model_path, final_eval_path, 'french', model, system='mix',
+                              total_series=total_series)
+    statistical_analysis(data_fr, 0.95, 'french', model)
+    data_ma = None
+    if model != 'apc_2':
+        data_ma = get_data_series(final_model_path, final_eval_path, 'mandarin', model, system='mix',
+                                  total_series=total_series)
+        statistical_analysis(data_ma, 0.95, 'mandarin', model)
+
+    plot_type = 'two' if model != 'apc_2' else 'one'
+    # val-loss vs ABX scores & epoch vs ABX scores
+    get_scatter_plots_two_lang(data_fr, data_ma, 1, model + '_abx_scores.' + img_type, 'French', 'Mandarin',
+                               axes_labels[1] + loss, axes_labels[4], plot_type)
+    get_scatter_plots_two_lang(data_fr, data_ma, 0, model + '_epoch_abx_scores.' + img_type, 'French', 'Mandarin',
+                               axes_labels[0], axes_labels[4], plot_type)
+
+    print(model)
+    for x_axis in range(0,2):
+        # epoch vs all & val_loss vs abx_scores
+        y_axes = range(1,4) if x_axis == 0 else range(2,4)
+        for y_axis in y_axes:
+            colour_idx = 4
+            if y_axis == 2:
+                colour_idx = 0
+            if y_axis == 3:
+                colour_idx = 2
+            name_id = '_french_' + ('epoch_' if x_axis == 0 else '')
+            get_scatter_plot(data_fr, x_axis, y_axis, model + name_id + axes[y_axis] + '.' + img_type, 'mix',
+                             colour_idx=colour_idx, x_label=axes_labels[0], y_label=axes_labels[y_axis])
+            if model != 'apc_2':
+                if y_axis == 2:
+                    colour_idx = 1
+                if y_axis == 3:
+                    colour_idx = 3
+                name_id = '_mandarin_' + ('epoch_' if x_axis == 0 else '')
+                get_scatter_plot(data_ma, x_axis, y_axis, model + name_id + axes[y_axis] + '.' + img_type, 'mix',
+                                 colour_idx=colour_idx, x_label=axes_labels[0], y_label=axes_labels[y_axis])
+
+    if model.startswith('cpc_2'):
+        title = 'CPC 2' if model == 'cpc_2' else 'CPC 2-10'
+        analyse_change_ratio('../statistical_analysis/' + model +'_french_data.json', 'French', title, 'mix', 'eps')
+        analyse_change_ratio('../statistical_analysis/' + model +'_mandarin_data.json', 'Mandarin', title, 'mix', 'eps')
