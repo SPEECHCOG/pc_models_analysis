@@ -113,7 +113,7 @@ def get_scatter_plot(data, x_idx, y_idx, file_name, system=None, colour_idx=None
             marker = ['+', '.', '*']
             alpha = [1, 0.8, 0.4]
             pyplot.scatter([x[x_idx] for x in data[system][series]], [x[y_idx] for x in data[system][series]],
-                           c=colour, marker=marker[series-1], alpha=alpha[series-1])
+                           c=colour, marker=marker[series - 1], alpha=alpha[series - 1])
 
     pyplot.rcParams['legend.fontsize'] = 11
     pyplot.grid(True, which='both', linestyle='--')
@@ -136,27 +136,30 @@ def get_scatter_plot(data, x_idx, y_idx, file_name, system=None, colour_idx=None
 
 def get_scatter_plots_two_lang(data, data2, x_idx, file_name, lang1, lang2, x_label, y_label, plot_type):
     colours = ['#1167B1', '#B73229', '#2A9DF4', '#F66257']
-    for series in range(1, len(data['mix']) + 1):
+    total_series = len(data['mix']) + 1 if data else len(data2['mix']) + 1
+    for series in range(1, total_series):
         marker = ['+', '.', '*']
-        alpha = [1,0.8,0.4]
-        pyplot.scatter([x[x_idx] for x in data['mix'][series]], [x[2] for x in data['mix'][series]],
-                       c=colours[0], marker=marker[series-1], alpha=alpha[series-1])
-        pyplot.scatter([x[x_idx] for x in data['mix'][series]], [x[3] for x in data['mix'][series]],
-                       c=colours[2], marker=marker[series-1], alpha=alpha[series-1])
-        if plot_type != 'one' and data2 is not None:
+        alpha = [1, 0.8, 0.4]
+        if data:
+            pyplot.scatter([x[x_idx] for x in data['mix'][series]], [x[2] for x in data['mix'][series]],
+                           c=colours[0], marker=marker[series - 1], alpha=alpha[series - 1])
+            pyplot.scatter([x[x_idx] for x in data['mix'][series]], [x[3] for x in data['mix'][series]],
+                           c=colours[2], marker=marker[series - 1], alpha=alpha[series - 1])
+        if (plot_type == 'two' and data2) or (plot_type == 'three' and data2 and data is None):
             pyplot.scatter([x[x_idx] for x in data2['mix'][series]], [x[2] for x in data2['mix'][series]],
-                           c=colours[1], marker=marker[series-1], alpha=alpha[series-1])
+                           c=colours[1], marker=marker[series - 1], alpha=alpha[series - 1])
             pyplot.scatter([x[x_idx] for x in data2['mix'][series]], [x[3] for x in data2['mix'][series]],
-                           c=colours[3], marker=marker[series-1], alpha=alpha[series-1])
+                           c=colours[3], marker=marker[series - 1], alpha=alpha[series - 1])
 
     # Config
-    pyplot.rcParams['legend.fontsize']=11
+    pyplot.rcParams['legend.fontsize'] = 11
     pyplot.grid(True, which='both', linestyle='--')
 
     patches_list = []
-    patches_list.append(patches.Patch(color='#1167B1', label=lang1 + ' - ABX across-speaker'))
-    patches_list.append(patches.Patch(color='#2A9DF4', label=lang1 + ' - ABX within-speaker'))
-    if plot_type != 'one' and data2 is not None:
+    if data:
+        patches_list.append(patches.Patch(color='#1167B1', label=lang1 + ' - ABX across-speaker'))
+        patches_list.append(patches.Patch(color='#2A9DF4', label=lang1 + ' - ABX within-speaker'))
+    if (plot_type == 'two' and data2) or (plot_type == 'three' and data2 and data is None):
         patches_list.append(patches.Patch(color='#B73229', label=lang2 + ' - ABX across-speaker'))
         patches_list.append(patches.Patch(color='#F66257', label=lang2 + ' - ABX within-speaker'))
     pyplot.legend(handles=patches_list)
@@ -195,7 +198,7 @@ def statistical_analysis(data, alpha, language, model):
     best_models = {'mix': [], 'diff': []}
     t_test = {'abx_across': 0, 'abx_within': 0}
     correlation_series = {'mix': {}, 'diff': {}}
-    std = {'mix':{}, 'diff':{}}
+    std = {'mix': {}, 'diff': {}}
     n = 10  # total samples
 
     for system in data:
@@ -332,8 +335,8 @@ def analyse_change_ratio(data_file, language, model, system=None, img_type='png'
                 ratio_val_loss = []
                 ratio_across_spkr = []
                 ratio_within_spkr = []
-                for i in range(len(data[system][series])-1):
-                    ratio_val_loss.append(1-(data[system][series][i+1][1] / data[system][series][i][1]))
+                for i in range(len(data[system][series]) - 1):
+                    ratio_val_loss.append(1 - (data[system][series][i + 1][1] / data[system][series][i][1]))
                     ratio_across_spkr.append(1 - (data[system][series][i + 1][2] / data[system][series][i][2]))
                     ratio_within_spkr.append(1 - (data[system][series][i + 1][3] / data[system][series][i][3]))
                 figures[system][series].append(ratio_val_loss)
@@ -391,10 +394,10 @@ def analyse_change_ratio(data_file, language, model, system=None, img_type='png'
 
 
 # Generate data and scatter plots.
-models = ['apc', 'apc_2', 'cpc', 'cpc_2', 'cpc_2_10']
+models = ['apc', 'apc_2', 'apc_mse', 'cpc', 'cpc_2', 'cpc_2_10']
 axes = ['epoch', 'val_loss', 'across_speaker', 'within_speaker']
-losses = ['(MAE)', '(InfoNCE)']
-axes_labels = ['Epoch', 'Validation Loss', 'ABX across-speaker', 'ABX within-speaker', 'ABX scores']
+losses = ['(MAE)', '(InfoNCE)', '(MSE)']
+axes_labels = ['Epoch', 'Validation Loss ', 'ABX across-speaker', 'ABX within-speaker', 'ABX scores']
 
 model_path = '../models/stats/'
 eval_path = '../evaluation/evaluation_stat/'
@@ -405,17 +408,27 @@ for model in models:
     total_series = 3 if model.startswith('apc') or model == 'cpc' else 2
     final_model_path = model_path + model
     final_eval_path = eval_path + model
-    loss = losses[0] if model.startswith('apc') else losses[1]
-    data_fr = get_data_series(final_model_path, final_eval_path, 'french', model, system='mix',
-                              total_series=total_series)
-    statistical_analysis(data_fr, 0.95, 'french', model)
+    if model.startswith('apc_mse'):
+        loss = losses[2]
+    else:
+        loss = losses[0] if model.startswith('apc') else losses[1]
+
+    data_fr = None
+    if model != 'apc_mse':
+        data_fr = get_data_series(final_model_path, final_eval_path, 'french', model, system='mix',
+                                  total_series=total_series)
+        statistical_analysis(data_fr, 0.95, 'french', model)
     data_ma = None
     if model != 'apc_2':
         data_ma = get_data_series(final_model_path, final_eval_path, 'mandarin', model, system='mix',
                                   total_series=total_series)
         statistical_analysis(data_ma, 0.95, 'mandarin', model)
 
-    plot_type = 'two' if model != 'apc_2' else 'one'
+    if model == 'apc_2':
+        plot_type = 'one'
+    else:
+        plot_type = 'two' if model != 'apc_mse' else 'three'
+
     # val-loss vs ABX scores & epoch vs ABX scores
     get_scatter_plots_two_lang(data_fr, data_ma, 1, model + '_abx_scores.' + img_type, 'French', 'Mandarin',
                                axes_labels[1] + loss, axes_labels[4], plot_type)
@@ -423,9 +436,9 @@ for model in models:
                                axes_labels[0], axes_labels[4], plot_type)
 
     print(model)
-    for x_axis in range(0,2):
+    for x_axis in range(0, 2):
         # epoch vs all & val_loss vs abx_scores
-        y_axes = range(1,4) if x_axis == 0 else range(2,4)
+        y_axes = range(1, 4) if x_axis == 0 else range(2, 4)
         for y_axis in y_axes:
             colour_idx = 4
             if y_axis == 2:
@@ -433,8 +446,10 @@ for model in models:
             if y_axis == 3:
                 colour_idx = 2
             name_id = '_french_' + ('epoch_' if x_axis == 0 else '')
-            get_scatter_plot(data_fr, x_axis, y_axis, model + name_id + axes[y_axis] + '.' + img_type, 'mix',
-                             colour_idx=colour_idx, x_label=axes_labels[0], y_label=axes_labels[y_axis])
+            if data_fr:
+                get_scatter_plot(data_fr, x_axis, y_axis, model + name_id + axes[y_axis] + '.' + img_type, 'mix',
+                                 colour_idx=colour_idx, x_label=axes_labels[0], y_label=axes_labels[y_axis] +
+                                                                                        (loss if y_axis == 1 else ''))
             if model != 'apc_2':
                 if y_axis == 2:
                     colour_idx = 1
@@ -442,9 +457,11 @@ for model in models:
                     colour_idx = 3
                 name_id = '_mandarin_' + ('epoch_' if x_axis == 0 else '')
                 get_scatter_plot(data_ma, x_axis, y_axis, model + name_id + axes[y_axis] + '.' + img_type, 'mix',
-                                 colour_idx=colour_idx, x_label=axes_labels[0], y_label=axes_labels[y_axis])
+                                 colour_idx=colour_idx, x_label=axes_labels[0], y_label=axes_labels[y_axis] +
+                                                                                        (loss if y_axis == 1 else ''))
 
     if model.startswith('cpc_2'):
         title = 'CPC 2' if model == 'cpc_2' else 'CPC 2-10'
-        analyse_change_ratio('../statistical_analysis/' + model +'_french_data.json', 'French', title, 'mix', 'eps')
-        analyse_change_ratio('../statistical_analysis/' + model +'_mandarin_data.json', 'Mandarin', title, 'mix', 'eps')
+        analyse_change_ratio('../statistical_analysis/' + model + '_french_data.json', 'French', title, 'mix', 'eps')
+        analyse_change_ratio('../statistical_analysis/' + model + '_mandarin_data.json', 'Mandarin', title, 'mix',
+                             'eps')

@@ -43,14 +43,14 @@ class ModelBase(ABC):
             n_samples_tr = x_train.shape[0]
             n_samples_tr = int(n_samples_tr * config['dataset_percentage'] / 100)
             self.x_train = x_train[:n_samples_tr, :, :]
-            self.y_train = y_train[:n_samples_tr, :, :]
+            self.y_train = y_train[:n_samples_tr, :, :] if y_train else None
             self.x_val = x_val
             self.y_val = y_val
             if x_val is not None:
                 n_samples_vl = x_val.shape[0]
                 n_samples_vl = int(n_samples_vl * config['dataset_percentage'] / 100)
                 self.x_val = x_val[:n_samples_vl, :, :]
-                self.y_val = y_val[:n_samples_vl, :, :]
+                self.y_val = y_val[:n_samples_vl, :, :] if y_val else None
         else:
             self.x_train = x_train
             self.y_train = y_train
