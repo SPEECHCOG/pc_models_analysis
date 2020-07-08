@@ -11,7 +11,7 @@ import tensorflow as tf
 from keras import backend as K
 from sklearn.decomposition import PCA
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, Callback, ReduceLROnPlateau
-from tensorflow.keras.layers import Dropout, Conv1D, Input, GRU, Dense
+from tensorflow.keras.layers import Dropout, Conv1D, Layer, Input, GRU, Dense, Conv2DTranspose
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
