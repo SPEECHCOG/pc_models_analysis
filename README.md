@@ -34,7 +34,7 @@ and for each run.
 ### Publication
 
 "Analysis of Predictive Coding Models for Phonemic Representation Learning in Small Datasets". María Andrea Cruz Blandón, Okko Räsänen. 
-Proceedings of the 37th International Conference on Machine Learning, PMLR 108, 2020.
+Published at the workshop on Self-supervision in Audio and Speech at the 37th International Conference on Machine Learning,2020.
 
 
  
